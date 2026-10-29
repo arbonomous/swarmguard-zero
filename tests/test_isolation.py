@@ -24,6 +24,7 @@ class IsolationTests(unittest.TestCase):
         args = runner.create_args(IMAGE, "test", ["/bin/sh", "-c", "echo ok"])
         for flag in ("--network=none", "--read-only", "--cap-drop=ALL", "--pull=never", "--user=65534:65534"):
             self.assertIn(flag, args)
+        self.assertNotIn("--pid=private", args)
         self.assertNotIn("--privileged", args)
         self.assertNotIn("--volume", args)
         self.assertEqual(args[-4:], ["/bin/sh", IMAGE, "-c", "echo ok"])

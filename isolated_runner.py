@@ -47,7 +47,7 @@ def create_args(image_id: str, name: str, command: list[str]) -> list[str]:
             "--network=none", "--read-only", "--cap-drop=ALL",
             "--security-opt=no-new-privileges=true", "--user=65534:65534",
             "--pids-limit=64", "--memory=256m", "--memory-swap=256m", "--cpus=1",
-            "--ipc=private", "--pid=private", "--tmpfs=/tmp:rw,noexec,nosuid,nodev,size=32m,mode=1777",
+            "--ipc=private", "--tmpfs=/tmp:rw,noexec,nosuid,nodev,size=32m,mode=1777",
             "--workdir=/tmp", "--env=HOME=/tmp", "--env=TMPDIR=/tmp",
             "--entrypoint", command[0], image_id, *command[1:]]
 
