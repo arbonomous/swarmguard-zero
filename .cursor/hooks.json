@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "command": "python3 hooks/swarmguard_pretool.py",
+        "failClosed": true,
+        "timeout": 10
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": "python3 hooks/swarmguard_pretool.py",
+        "failClosed": true,
+        "timeout": 10
+      }
+    ],
+    "beforeReadFile": [
+      {
+        "command": "python3 hooks/swarmguard_pretool.py",
+        "failClosed": true,
+        "timeout": 10
+      }
+    ],
+    "beforeTabFileRead": [
+      {
+        "command": "python3 hooks/swarmguard_pretool.py",
+        "failClosed": true,
+        "timeout": 10
+      }
+    ],
+    "beforeMCPExecution": [
+      {
+        "command": "python3 hooks/swarmguard_pretool.py",
+        "failClosed": true,
+        "timeout": 10
+      }
+    ]
+  }
+}

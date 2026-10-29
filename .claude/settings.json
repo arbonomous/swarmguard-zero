@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/hooks/swarmguard_pretool.py",
+            "timeout": 10,
+            "statusMessage": "SwarmGuard policy gate"
+          }
+        ]
+      }
+    ]
+  }
+}
