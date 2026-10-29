@@ -214,3 +214,18 @@ verified against a live runtime. Local tests use a real subprocess stream and
 mocked Docker lifecycle. Live OrbStack verification is still required before
 claiming this proof passed on Mac. No intelligent cloud agent is installed or
 called; model investigation remains a separate explicitly approved future layer.
+
+
+## Disabled Meta adapter
+
+`meta_agent.py` is source-only preparation, not connected to a menu action or CLI.
+No live API call was used to test it. Tests mock provider replies. Before calling
+it, verify current credit balance, billing/overage controls and the user's exact
+spending permission. Token/turn caps are not a promise of zero charges.
+
+The adapter keeps the existing key in the host environment, uses only the fixed
+Meta endpoint and Spark model, and offers only Broker-mediated source/artifact
+functions. It ends its model session on denial. This host-session adapter does
+not claim container isolation, termination of an independently running agent, or
+whole-Mac protection. A narrow host inference RPC bridge for a container worker
+is separate unfinished work. No key belongs inside that worker.

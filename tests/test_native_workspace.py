@@ -36,8 +36,30 @@ class MenuFlowTests(unittest.TestCase):
     def test_no_direct_tests_in_menu_handlers(self):
         import inspect,menubar
         source=inspect.getsource(menubar)
-        self.assertIn('open_workspace(section="Safety check"',source)
+        self.assertIn('show_native_section(section="Safety check"',source)
         for name in ('_on_proofs','runProofs_'):
             body=source.split('def '+name,1)[1].split('\n        def ',1)[0]
             self.assertNotIn('run_free_proofs()',body)
             self.assertIn('Safety check',body)
+
+class SelectorTests(unittest.TestCase):
+    def test_native_selectors_match_python_arity(self):
+        import ast
+        source=Path(native.__file__).read_text()
+        tree=ast.parse(source)
+        for node in ast.walk(tree):
+            if not isinstance(node,ast.ClassDef) or node.name!='WorkspaceController':continue
+            for method in node.body:
+                if not isinstance(method,ast.FunctionDef):continue
+                if any(isinstance(d,ast.Attribute) and d.attr=='python_method' for d in method.decorator_list):continue
+                self.assertEqual(method.name.count('_'),len(method.args.args)-1,method.name)
+
+class CompactResultsTests(unittest.TestCase):
+    def test_summary_hides_evidence(self):
+        self.assertEqual(native.check_summary('Passed\n\nEvidence:\nraw events'), 'Passed')
+        self.assertEqual(native.check_summary('Not checked yet'), 'Not checked yet')
+    def test_native_copy_and_selection(self):
+        source=Path(native.__file__).read_text()
+        self.assertIn('setSelectable_(True)',source)
+        self.assertIn("'Copy results', 'copyClicked:'",source)
+        self.assertIn("'Show details', 'detailsClicked:'",source)

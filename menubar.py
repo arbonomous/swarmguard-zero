@@ -182,10 +182,29 @@ def open_full_console(*, workspace: bool = False) -> str:
 open_protector = open_full_console
 
 
+def show_native_section(section: str = "Status", status_item=None) -> None:
+    """Keep native construction failures visible instead of losing menu actions."""
+    print("[SwarmGuard] Opening native section: " + section, flush=True)
+    try:
+        from native_workspace import open_workspace
+        open_workspace(section=section, status_item=status_item)
+        print("[SwarmGuard] Native section opened", flush=True)
+    except Exception as exc:
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        sys.stderr.flush()
+        from AppKit import NSAlert
+        alert = NSAlert.alloc().init()
+        alert.setMessageText_("SwarmGuard could not open this panel")
+        alert.setInformativeText_(type(exc).__name__ + ": " + str(exc)[:400] +
+                                 "\nNo workload was launched. Send this message for help.")
+        alert.addButtonWithTitle_("OK")
+        alert.runModal()
+
+
 def open_offline_workspace(status_item=None) -> str:
     """Native menu-owned workspace. Never starts or opens a browser."""
-    from native_workspace import open_workspace
-    open_workspace(status_item=status_item)
+    show_native_section("Workspace", status_item)
     return "Opened native offline workspace."
 
 
@@ -799,16 +818,13 @@ def _run_rumps() -> None:
             self._apply_snapshot(_status_snapshot())
 
         def _on_open(self, _sender: Any) -> None:
-            from native_workspace import open_workspace
-            open_workspace(section="Status", status_item=_rumps_status_item(self))
+            show_native_section(section="Status", status_item=_rumps_status_item(self))
 
         def _on_proofs(self, _sender: Any) -> None:
-            from native_workspace import open_workspace
-            open_workspace(section="Safety check", status_item=_rumps_status_item(self))
+            show_native_section(section="Safety check", status_item=_rumps_status_item(self))
 
         def _on_activity(self, _sender: Any) -> None:
-            from native_workspace import open_workspace
-            open_workspace(section="Activity and evidence", status_item=_rumps_status_item(self))
+            show_native_section(section="Activity and evidence", status_item=_rumps_status_item(self))
 
         def _on_workspace(self, _sender: Any) -> None:
             open_offline_workspace(_rumps_status_item(self))
@@ -958,16 +974,13 @@ def _run_appkit() -> None:
             refresh_protector_panel_if_visible()
 
         def openProtector_(self, _sender) -> None:
-            from native_workspace import open_workspace
-            open_workspace(section="Status", status_item=self.status_item)
+            show_native_section(section="Status", status_item=self.status_item)
 
         def runProofs_(self, _sender) -> None:
-            from native_workspace import open_workspace
-            open_workspace(section="Safety check", status_item=self.status_item)
+            show_native_section(section="Safety check", status_item=self.status_item)
 
         def openActivity_(self, _sender) -> None:
-            from native_workspace import open_workspace
-            open_workspace(section="Activity and evidence", status_item=self.status_item)
+            show_native_section(section="Activity and evidence", status_item=self.status_item)
 
         def openWorkspace_(self, _sender) -> None:
             open_offline_workspace(self.status_item)

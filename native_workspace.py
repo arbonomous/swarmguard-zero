@@ -26,6 +26,11 @@ def prepare(paths: list[str], command_text: str, output_text: str) -> tuple:
     return files, command, outputs
 
 
+def check_summary(text: str) -> str:
+    """Keep raw protocol evidence out of the normal result view."""
+    return text.split('\n\nEvidence:', 1)[0]
+
+
 def is_busy() -> bool:
     return bool(_CONTROLLER is not None and _CONTROLLER.busy)
 
@@ -61,7 +66,8 @@ def _build():
                         NSWindowStyleMaskTitled, NSWindowStyleMaskClosable,
                         NSFloatingWindowLevel, NSTextField, NSTextView, NSScrollView,
                         NSButton, NSOpenPanel, NSSavePanel, NSAlert, NSModalResponseOK,
-                        NSAlertFirstButtonReturn, NSPopUpButton, NSImageView, NSImage, NSSound)
+                        NSAlertFirstButtonReturn, NSPopUpButton, NSImageView, NSImage, NSSound,
+                        NSPasteboard, NSPasteboardTypeString)
     from Foundation import NSObject
 
     class WorkspaceController(NSObject):
@@ -102,7 +108,7 @@ def _build():
             self.sections = NSPopUpButton.alloc().initWithFrame_pullsDown_(NSMakeRect(18, 540, 330, 28), False)
             self.sections.addItemsWithTitles_(['Status', 'Attack catalog', 'Policy checks', 'Activity and evidence', 'Latest analysis', 'Safety check', 'Workspace', 'About'])
             self.sections.setTarget_(self);self.sections.setAction_('sectionChanged:');content.addSubview_(self.sections)
-            button('Show details', 'sectionChanged:', 365, 540, 205)
+            self.details_button = button('Show details', 'detailsClicked:', 365, 540, 205)
             mark = NSImage.alloc().initWithContentsOfFile_(str(Path(__file__).resolve().parent / 'assets' / 'brand' / 'swarmguard-mark.png'))
             brand = NSImageView.alloc().initWithFrame_(NSMakeRect(18, 596, 36, 36))
             brand.setImage_(mark);brand.setImageScaling_(0);content.addSubview_(brand)
@@ -142,12 +148,17 @@ def _build():
             scroll.setHasVerticalScroller_(True)
             self.results = NSTextView.alloc().initWithFrame_(NSMakeRect(0, 0, 534, 229))
             self.results.setEditable_(False)
+            self.results.setSelectable_(True)
             self.results.setString_('Not checked. This is experimental isolation, not whole-Mac protection.\nThe complete check uses synthetic source only.')
             self.results.setVerticallyResizable_(True)
             self.results.setHorizontallyResizable_(False)
             self.results.textContainer().setWidthTracksTextView_(True)
             scroll.setDocumentView_(self.results);content.addSubview_(scroll)
-            label('Outputs never overwrite originals automatically. Review before using them.', 12, 24)
+            self.footer = label('Outside agents on your Mac are not covered.', 12, 24)
+            self.footer.setFrame_(NSMakeRect(18, 12, 380, 24))
+            self.copy_button = button('Copy results', 'copyClicked:', 418, 10, 154)
+            self.base_frames = [(view, view.frame()) for view in content.subviews()]
+            self.showing_check_details = False
             self.panel.setDelegate_(self)
             self.sectionChanged_(None)
             return self
@@ -156,6 +167,13 @@ def _build():
             if self.busy:
                 return
             self.mode = str(self.sections.titleOfSelectedItem())
+            compact = self.mode in ('Status', 'Safety check')
+            self.panel.setContentSize_((590, 440 if compact else 660))
+            for view, frame in self.base_frames:
+                if view not in (self.scroll, self.footer, self.copy_button):
+                    view.setFrameOrigin_((frame.origin.x, frame.origin.y - (220 if compact else 0)))
+            self.details_button.setTitle_('Show details')
+            self.showing_check_details = False
             workspace = self.mode == 'Workspace'
             for view in self.workspace_views:
                 view.setHidden_(not workspace)
@@ -164,9 +182,9 @@ def _build():
             details = self.mode not in ('Status', 'Safety check', 'Workspace')
             for view in self.top_views:
                 view.setHidden_(not details)
-            self.scroll.setFrame_(NSMakeRect(18, 48, 554, 120 if workspace else (350 if details else 470)))
+            self.scroll.setFrame_(NSMakeRect(18, 48, 554, 120 if workspace else (350 if details else 250)))
             if self.mode == 'Safety check':
-                self.results.setString_(getattr(self, 'last_check', 'Not checked yet.\n\nChoose Test managed guard above for an actual request/denial/owned-workload stop proof. The workload is synthetic, not an intelligent AI agent.\n\nNo private files, downloads, network or AI credits. If it fails, stop and review the result.'));return
+                self.results.setString_(check_summary(getattr(self, 'last_check', 'Not checked yet.\n\nTest a scripted workload: allow a safe task, block a forbidden request, then stop and remove its container.\n\nNo private files, network or AI credits. Not an intelligent AI agent.')));return
             if workspace:
                 self.results.setString_('Offline scratch only. Run the complete check first. No cloud agent is installed.');return
             try:
@@ -174,6 +192,22 @@ def _build():
                 self.results.setString_(section_text(self.mode))
             except Exception as exc:
                 self.showError_('Details unavailable (' + type(exc).__name__ + '). No model call was made.')
+
+        def detailsClicked_(self, _sender):
+            if self.busy:
+                return
+            if self.mode == 'Safety check':
+                self.showing_check_details = not self.showing_check_details
+                text = getattr(self, 'last_check', 'No test result yet.')
+                self.results.setString_(text if self.showing_check_details else check_summary(text))
+                self.details_button.setTitle_('Hide details' if self.showing_check_details else 'Show details')
+            else:
+                self.sectionChanged_(None)
+
+        def copyClicked_(self, _sender):
+            board = NSPasteboard.generalPasteboard()
+            board.clearContents()
+            board.setString_forType_(str(self.results.string()), NSPasteboardTypeString)
 
         def visualClicked_(self, _sender):
             # Only fixed, repository-owned synthetic artifacts, never paths from external content.
@@ -258,6 +292,7 @@ def _build():
                     self.paths = [];self.selection.setStringValue_('Selection refused. Choose safe source files.')
                     self.showError_(str(exc))
 
+        @objc.python_method
         def startWorker_(self, operation, kind='workspace'):
             self.operation_kind = kind
             self.setBusy_(True)
@@ -275,9 +310,11 @@ def _build():
             threading.Thread(target=worker, daemon=True).start()
 
         def finished_(self, message):
-            self.results.setString_(str(message))
+            self.results.setString_(check_summary(str(message)) if self.operation_kind == 'check' else str(message))
             if self.operation_kind == 'check':
                 self.last_check = str(message)
+                self.showing_check_details = False
+                self.details_button.setTitle_('Show details')
             self.headline.setStringValue_('Finished. Review the result below before continuing.')
             self.setBusy_(False)
 
@@ -289,12 +326,12 @@ def _build():
             def operation():
                 from managed_guard import prove_intervention
                 result = prove_intervention()
-                text = ['Managed guard proof passed.' if result['proof_passed'] else 'Managed guard needs attention.',
-                        'Synthetic workload, real deny/stop checks. Not an intelligent cloud agent.',
-                        'A source task runs first. A forbidden host-file request is then denied before any host read.',
-                        'Owned workload stopped: ' + str(result['stopped']),
-                        'Scratch container removed: ' + str(result['removed']),
-                        'Outside agents on your Mac are not covered.', '', 'Evidence:']
+                text = ['Safety check passed.' if result['proof_passed'] else 'Safety check needs attention.',
+                        'Scripted workload. Real blocking and container cleanup.',
+                        ('A safe file task ran. The forbidden file request was blocked.' if result['proof_passed'] else 'The check did not verify every required step. Review details.'),
+                        'Container stopped: ' + ('Yes' if result['stopped'] else 'No'),
+                        'Container removed: ' + ('Yes' if result['removed'] else 'No'),
+                        'Not an intelligent AI agent or whole-Mac protection.', '', 'Evidence:']
                 text.extend(event['kind'] + ': ' + json.dumps({k:v for k,v in event.items() if k != 'kind'}) for event in result['events'])
                 if not result['removed']:
                     text.append('Cleanup needs attention: ' + result['name'])
