@@ -3,11 +3,14 @@
 **Deadline:** Tuesday, Nov 4, 2026 · 9:00 PM ET (submit by ~6:00 PM ET).  
 **Today’s date when written:** Wednesday, Oct 28, 2026 → **~7 days left.**
 
+Product name **SwarmGuard**; **ZERO** is the edition tagline (use sparingly). Brand mark + tokens: [`assets/brand/BRAND.md`](./assets/brand/BRAND.md) · mark: [`assets/brand/swarmguard-mark.png`](./assets/brand/swarmguard-mark.png).
+
 This file is the single “make it make sense” plan. Everything else supports it:
 
 | Doc | Job |
 |-----|-----|
 | `WIN_PLAN.md` (this) | Strategy + calendar + decisions |
+| `assets/brand/BRAND.md` | Logo, color tokens, do/don’t |
 | `swarmguard_zero_meta_hackathon_blueprint.md` | Product + threat research + do/don’t |
 | `meta_model_api_muse_code_expert_guide.md` | How to use Meta stack at full capacity |
 | `meta_hackathon_rules_daily_tracker.md` | Live rules / dates / credits |
@@ -61,7 +64,8 @@ Waiver-style weights (verify vs Official Rules PDF):
 
 Treat these as **done foundation**:
 
-- Autonomous War Room (`dashboard.py`) — inject → Muse pipeline → auto-quarantine → incident log + sounds
+- Protector UI (`dashboard.py` + menu-bar mark) — inject → Muse pipeline → auto-quarantine → incident log + sounds (not a War Room game HUD)
+- Brand assets (`assets/brand/`) — shield + swarm mark, menu-bar icon, tokens
 - Multi-model brain (`swarm_brain.py`) — Spark guards (Overwatch multimodal), Wonder forensics, SAM boxes
 - Autonomy + bus (`autonomy.py`, `threat_bus.py`, `sounds.py`)
 - Live verification already proved: Overwatch *read* white-on-white text; Wonder quoted it; SAM boxed; auto-quarantine logged
@@ -104,7 +108,8 @@ Honest limits: IDE hook soft-allows benign unknown paths/cmds so coding stays us
 |----------|--------|-----|
 | Track | Indie solo | Matches status; ambition via idea not headcount |
 | Theme | Lead **Build for Your World**, nod **Push the Frontier** | Personal agent-security pain + new control capability |
-| Primary UI | Streamlit **protector** (status + MCP gate + activity; demo secondary) | Not a War Room game HUD |
+| Primary UI | macOS **menu-bar Protector** (`menubar.py` native NSPanel) | Quiet AV vibes; stay in-app |
+| Optional deep console | Streamlit `dashboard.py` | Advanced / demo secondary — not required for core status |
 | Primary behavior | IDE hook + MCP proxy deny-before-run + AI inspect + report | Feels like AV, not a SOC toy |
 | Meta stack | Spark + Wonder + SAM on Model API | Maximizes tooling score |
 | Muse on every tool call | **OFF** by default (`SWARMGUARD_MUSE_ON_AMBIGUOUS=0`) | Token discipline |
@@ -172,7 +177,7 @@ From the expert guide — **compose**, don’t sprinkle:
 | Day | Focus | Done when |
 |-----|--------|-----------|
 | **Thu Oct 29** | P0 reliability: structured output + demo dry run #1 | Attack 01 succeeds 3× in a row |
-| **Fri Oct 30** | Polish War Room proof chips / chain clarity; draft writeup | Writeup skeleton filled |
+| **Fri Oct 30** | Polish protector proof chips / chain clarity; draft writeup | Writeup skeleton filled |
 | **Sat Oct 31** | P1 fail-closed rules *or* polish only if tired | Either policy banner ships or consciously skipped |
 | **Sun Nov 1** | Record demo takes (2+); pick best; upload draft private | Video file exists |
 | **Mon Nov 2** | GitHub cleanup, README, screenshots, final writeup | Repo cloneable by a stranger |
@@ -184,7 +189,7 @@ Workshops/Discord: only attend if it unblocks credits or Official Rules — do n
 ### API spend discipline
 Oct 28 stress runs burned most of a day’s Model API usage (~$1.80 / 225 requests). Remaining week:
 - Do **not** re-run `python stress_test.py 3` casually (already proven 18/18).
-- Practice/demo: War Room **Inject 01 only**, or `python stress_test.py smoke`.
+- Practice/demo: Protector **Attack 01 only**, or `python stress_test.py smoke`.
 - Claim partner credits (Fireworks/Modal/Baseten) if Meta Model API budget is tight — keep Meta API for the recorded demo.
 
 ---
@@ -194,6 +199,7 @@ Oct 28 stress runs burned most of a day’s Model API usage (~$1.80 / 225 reques
 - Do not make SwarmGuard a general malware scanner.  
 - Do not auto-kill real user processes.  
 - Do not center the Tk widget.  
+- Menu-bar companion (`./run_menubar.sh`) is optional AV chrome — never call Muse from it; never SIGKILL.  
 - Do not add dashboards, settings pages, or auth walls before the core loop is cinematic.  
 - Do not burn API credits on continuous auto-fire during practice unless testing.  
 - Do not claim “prompt injection solved.”

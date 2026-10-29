@@ -16,15 +16,17 @@ from swarm_brain import POISON_README, POISON_WEBPAGE, api_status
 from threat_bus import read_gate_status, read_incidents, read_state, reset_to_safe
 from threat_model import coverage_rows, summary_counts
 
+ASSETS = Path(__file__).resolve().parent / "assets"
+ASSETS.mkdir(exist_ok=True)
+BRAND_MARK = ASSETS / "brand" / "swarmguard-mark.png"
+_PAGE_ICON = str(BRAND_MARK) if BRAND_MARK.exists() else ":material/shield:"
+
 st.set_page_config(
     page_title="SwarmGuard",
-    page_icon=":material/shield:",
+    page_icon=_PAGE_ICON,
     layout="centered",
     initial_sidebar_state="collapsed",
 )
-
-ASSETS = Path(__file__).resolve().parent / "assets"
-ASSETS.mkdir(exist_ok=True)
 
 DEMOS = [
     {
@@ -201,11 +203,18 @@ def _activity_kind_label(row: dict) -> str:
 
 
 def render_hero(api_ok: bool, gate_on: bool, incident_count: int, mcp_status: dict) -> None:
-    st.title("SwarmGuard")
+    if BRAND_MARK.exists():
+        brand_row = st.container(horizontal=True, vertical_alignment="center")
+        with brand_row:
+            st.image(str(BRAND_MARK), width=48, alt="SwarmGuard mark")
+            st.title("SwarmGuard")
+    else:
+        st.title("SwarmGuard")
     st.markdown("#### Protection for your computer against sneaky AI helpers.")
     st.caption(
-        "It watches for tricks that steal passwords or keys, blocks dangerous actions when it can, "
-        "and keeps a simple activity log. You should not need to babysit a dashboard."
+        "Quiet antivirus for AI agents — watches for tricks that steal passwords or keys, "
+        "blocks dangerous actions when it can, and keeps a simple activity log. "
+        "You should not need to babysit a dashboard."
     )
 
     mcp_wrapping = bool(mcp_status.get("wrapping"))

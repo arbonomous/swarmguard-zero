@@ -1,8 +1,12 @@
 # SwarmGuard
 
-Protection for your computer against sneaky AI helpers — Meta Global AI Developer Hackathon (Indie Track).
+<p align="center">
+  <img src="assets/brand/swarmguard-mark.png" alt="SwarmGuard mark" width="96" />
+</p>
 
-**North star:** [`WIN_PLAN.md`](./WIN_PLAN.md) · Research: [`swarmguard_zero_meta_hackathon_blueprint.md`](./swarmguard_zero_meta_hackathon_blueprint.md) · Meta API: [`meta_model_api_muse_code_expert_guide.md`](./meta_model_api_muse_code_expert_guide.md)
+Protection for your computer against sneaky AI helpers — Meta Global AI Developer Hackathon (Indie Track). Quiet antivirus for AI agents.
+
+**Brand:** [`assets/brand/BRAND.md`](./assets/brand/BRAND.md) · **North star:** [`WIN_PLAN.md`](./WIN_PLAN.md) · Research: [`swarmguard_zero_meta_hackathon_blueprint.md`](./swarmguard_zero_meta_hackathon_blueprint.md) · Meta API: [`meta_model_api_muse_code_expert_guide.md`](./meta_model_api_muse_code_expert_guide.md)
 
 ## Claim
 
@@ -23,7 +27,7 @@ Agent MCP tools       →  MCP proxy (mcp_proxy.py)
 2. **MCP policy proxy** — `mcp_proxy.py` intercepts `tools/call`, runs `policy.evaluate_tool_call`, denies before upstream, logs `policy_deny` incidents
 3. **Policy catalog** — 16+ attack classes with no API spend — see `threat_model.py`
 4. **Meta AI swarm** — Muse Spark + Wonder + SAM inspect poisoned docs / helper behavior
-5. **Protector UI** — status + MCP gate heartbeat + activity (IDE hook / MCP policy deny vs Muse quarantine)
+5. **Protector UI** — macOS menu-bar native panel (primary) + optional Streamlit deep console; status + MCP gate heartbeat + activity (IDE hook / MCP policy deny vs Muse quarantine)
 
 Prove the gates (free, no Meta tokens):
 
@@ -48,16 +52,32 @@ Optional user-wide Cursor install: copy/merge into `~/.cursor/hooks.json` with a
 
 **Honest limits:** the IDE hook soft-allows pure “unknown path/cmd” so normal coding still works; catalog denials (secrets, egress, reverse shells, …) still block. MCP proxy stays hard fail-closed for untrusted tools. Cloud/remote agents may not deliver hook stdin (known Cursor limitation). Hooks only apply where Cursor/Claude Code loads this project’s config.
 
-## Run
+## Run (menu-bar first)
+
+Primary UX on macOS is the **menu-bar Protector** — quiet AV vibes, native in-app panel (not a browser).
 
 ```bash
 cd swarmguard-zero
+./run_menubar.sh
+```
+
+1. Look for the **SwarmGuard mark** in the menu bar (`assets/brand/swarmguard-icon-menu.png`) — status suffixes `!` / `·` when denials or enforce-off.
+2. Click the status item → **Open Protector** to toggle the native panel (mark + SwarmGuard title, status, MCP gate, recent denials, Refresh, Run free proofs).
+3. **Open full console (advanced)…** is optional — launches Streamlit `dashboard.py` in a browser for the deep console.
+4. **Refresh the icon:** menu → **Quit SwarmGuard menu**, then `./run_menubar.sh` again. Stale lock only: `rm /tmp/swarmguard-menubar.pid`.
+
+Brand tokens/usage: [`assets/brand/BRAND.md`](./assets/brand/BRAND.md). Mark + popout mock generated with **Muse Image** (`python tools/generate_brand_muse.py`). Runtime menu bar / Protector panel make **no Muse calls**. Single status item + PID lock (`/tmp/swarmguard-menubar.pid`).
+
+Install rumps into the venv when you can (`rumps` is in `requirements.txt`). If rumps is missing, `run_menubar.sh` falls back to Framework Python 3.13 + AppKit/PyObjC when present.
+
+### Optional deep console (Streamlit)
+
+```bash
 source .venv/bin/activate
 streamlit run dashboard.py
 ```
 
-You should see **Protecting this computer**, MCP gate idle/wrapping, and an activity feed.  
-Optional: **See it work** → Attack 01 (uses Meta API credits).
+Browser console: **Protecting this computer**, MCP gate idle/wrapping, activity feed, optional Attack 01 (Meta API credits). The MCP proxy and Cursor/Claude hooks are unchanged — menu bar does not replace them.
 
 ### Wrap a real (or fake) MCP server
 
@@ -77,9 +97,9 @@ Env flags:
 
 ## 2-minute demo story
 
-1. Protector: **Protecting** — policy on; IDE hooks installed; start MCP proxy → UI shows **MCP gate: wrapping tools**.
-2. Agent (or `run_ide_hook_demo.py` / `run_mcp_gate_demo.py`) tries `read .env` / evil curl → **hard deny** (no Muse needed).
-3. Optional: **See it work** → Attack 01 poisoned README → Spark + SAM + Wonder report.
+1. Menu bar **Open Protector**: **Protecting · Enforce ON**; start MCP proxy → panel shows **MCP gate: wrapping**.
+2. Agent (or menu **Run free proofs** / `run_ide_hook_demo.py` / `run_mcp_gate_demo.py`) tries `read .env` / evil curl → **hard deny** (no Muse needed); denials appear in the panel.
+3. Optional advanced: Streamlit **See it work** → Attack 01 poisoned README → Spark + SAM + Wonder report.
 4. Tagline: antivirus for agents — on the wire, with Meta eyes.
 
 ## Safety
