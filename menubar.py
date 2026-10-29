@@ -183,7 +183,14 @@ open_protector = open_full_console
 
 
 def show_native_section(section: str = "Status", status_item=None) -> None:
-    """Keep native construction failures visible instead of losing menu actions."""
+    """Present only after the NSMenu tracking action has returned."""
+    from PyObjCTools.AppHelper import callLater
+    print("[SwarmGuard] Queued native section: " + section, flush=True)
+    callLater(0, _present_native_section, section, status_item)
+
+
+def _present_native_section(section: str, status_item=None) -> None:
+    """Deferred main-loop presentation, including visible error handling."""
     print("[SwarmGuard] Opening native section: " + section, flush=True)
     try:
         from native_workspace import open_workspace

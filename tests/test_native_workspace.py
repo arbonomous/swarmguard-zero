@@ -16,7 +16,7 @@ class NativePrepTests(unittest.TestCase):
     def test_native_route_does_not_open_browser(self):
         import menubar
         with patch.object(native,'open_workspace') as opened,patch.object(menubar.webbrowser,'open') as browser:
-            menubar.open_offline_workspace();opened.assert_called_once();browser.assert_not_called()
+            menubar._present_native_section('Workspace');opened.assert_called_once();browser.assert_not_called()
 
 class OverviewTests(unittest.TestCase):
     def test_native_sections_available_without_browser(self):
@@ -63,3 +63,19 @@ class CompactResultsTests(unittest.TestCase):
         self.assertIn('setSelectable_(True)',source)
         self.assertIn("'Copy results', 'copyClicked:'",source)
         self.assertIn("'Show details', 'detailsClicked:'",source)
+
+class DeferredPresentationTests(unittest.TestCase):
+    def test_menu_queues_before_opening(self):
+        import sys,types,menubar
+        queued=[]
+        helper=types.ModuleType('PyObjCTools.AppHelper')
+        helper.callLater=lambda *args:queued.append(args)
+        with patch.dict(sys.modules,{'PyObjCTools':types.ModuleType('PyObjCTools'),'PyObjCTools.AppHelper':helper}),patch.object(native,'open_workspace') as opened:
+            marker=object()
+            menubar.show_native_section('Safety check',marker)
+            opened.assert_not_called()
+            self.assertEqual(len(queued),1)
+            delay,callback,*args=queued[0]
+            self.assertEqual(delay,0)
+            callback(*args)
+            opened.assert_called_once_with(section='Safety check',status_item=marker)

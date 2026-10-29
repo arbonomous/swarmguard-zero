@@ -58,6 +58,9 @@ def open_workspace(section: str = "Workspace", status_item=None) -> None:
             _CONTROLLER.panel.center()
     NSApp.activateIgnoringOtherApps_(True)
     _CONTROLLER.panel.makeKeyAndOrderFront_(None)
+    print('[SwarmGuard] Presentation visible=' + str(bool(_CONTROLLER.panel.isVisible())) +
+          ' key=' + str(bool(_CONTROLLER.panel.isKeyWindow())) +
+          ' active=' + str(bool(NSApp.isActive())), flush=True)
 
 
 def _build():
