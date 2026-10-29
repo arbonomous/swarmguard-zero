@@ -60,7 +60,7 @@ class Guard:
         self.events.append({'kind':kind,'elapsed':round(time.monotonic()-self.started,3), **data})
 
     def run(self, source: dict[str,bytes], command: list[str], seconds: int = 30,
-            on_event: Callable[[dict],None] | None = None) -> dict:
+            on_event: Callable[[dict],None] | None = None, model_session=None) -> dict:
         if not 1 <= seconds <= 120:
             raise ValueError('Runtime must be 1..120 seconds')
         broker = Broker(source)
@@ -104,13 +104,13 @@ class Guard:
                             line,buffer=buffer.split(b'\n',1)
                             try:
                                 request=json.loads(line)
-                                response=broker.request(request)
+                                response=(model_session.request(request, broker) if model_session is not None else broker.request(request))
                             except (PermissionError,ValueError,TypeError,KeyError,UnicodeError) as exc:
                                 denied=True
                                 self.record('denied',reason=str(exc)[:180],effect_executed=False)
                                 if on_event:on_event(self.events[-1])
                                 raise PermissionError('Managed tool request denied') from exc
-                            self.record('allowed',tool=request['tool'],request_id=request['id'])
+                            self.record('model_step' if request['tool']=='model_next' else 'allowed',tool=request['tool'],request_id=request['id'])
                             if on_event:on_event(self.events[-1])
                             encoded=(json.dumps(response,separators=(',',':'))+'\n').encode()
                             if len(encoded)>65536:

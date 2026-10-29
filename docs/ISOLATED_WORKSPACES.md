@@ -229,3 +229,33 @@ functions. It ends its model session on denial. This host-session adapter does
 not claim container isolation, termination of an independently running agent, or
 whole-Mac protection. A narrow host inference RPC bridge for a container worker
 is separate unfinished work. No key belongs inside that worker.
+
+
+## Prepared managed-model bridge (not live-verified)
+
+`managed_model.py` joins host-only inference to the existing offline Guard. It is
+not connected to ordinary native actions or a CLI and defaults to refusing use.
+A new explicitly bounded live-inference approval is required. The previous
+one-run model test permission is consumed, not reused by this module.
+
+A fixed shell relay in the owned network-disabled container asks for the next
+model step and echoes the returned structured tool request. The host retains the
+provider key and conversation, contacts only Meta's fixed endpoint/model, then
+checks the exact echoed request through the Broker. Out-of-order inference or
+substitution is denied. No source/model text is evaluated as shell. A denied
+request bubbles into the same scoped stop/inspect/remove checks as the scripted
+proof. The worker is an agent-protocol relay, not a local model installation.
+
+Limits: three model turns, 1600 completion tokens per turn, 20-second provider
+timeout with retries disabled, bounded source/context/tool output and existing
+90-second Guard runtime. These are engineering limits, not a provider dollar cap.
+The fixed provider SDK call is synchronous, so a request already in flight can
+finish or hit its own timeout before the supervisor handles a later deadline.
+No network/key is given to the worker. Host and daemon remain trusted.
+
+Dry tests use mocked provider responses and Docker control plus a real local
+relay subprocess. They prove wiring, exact-request matching and cleanup calls,
+not live container/model enforcement. A future live injection check must report
+the model's actual behavior. Ignoring an injected instruction is not evidence
+that an attack tool request was denied. Deterministic enforcement proofs stay
+labeled separately from model-choice observations.
