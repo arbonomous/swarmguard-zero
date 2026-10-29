@@ -109,7 +109,7 @@ def _build():
             title = NSTextField.labelWithString_('SwarmGuard')
             title.setFrame_(NSMakeRect(66, 608, 280, 24));content.addSubview_(title)
             self.headline = label('Ready to check. This is not whole-Mac protection.', 572, 24)
-            self.home_button = button('Run safety check', 'checkClicked:', 365, 596, 205)
+            self.home_button = button('Test managed guard', 'guardClicked:', 365, 596, 205)
             before_details = len(content.subviews())
             self.scenarios = NSPopUpButton.alloc().initWithFrame_pullsDown_(NSMakeRect(18, 500, 330, 28), False)
             self.scenarios.addItemsWithTitles_(['Hidden document trap', 'Stolen keys over network', 'Webpage hijack'])
@@ -166,7 +166,7 @@ def _build():
                 view.setHidden_(not details)
             self.scroll.setFrame_(NSMakeRect(18, 48, 554, 120 if workspace else (350 if details else 470)))
             if self.mode == 'Safety check':
-                self.results.setString_(getattr(self, 'last_check', 'Not checked yet.\n\nChoose Run safety check above. We will test a disposable offline container and synthetic file copies, then remove it.\n\nNo private files, downloads, network or AI credits. If it fails, stop and review the result.'));return
+                self.results.setString_(getattr(self, 'last_check', 'Not checked yet.\n\nChoose Test managed guard above for an actual request/denial/owned-workload stop proof. The workload is synthetic, not an intelligent AI agent.\n\nNo private files, downloads, network or AI credits. If it fails, stop and review the result.'));return
             if workspace:
                 self.results.setString_('Offline scratch only. Run the complete check first. No cloud agent is installed.');return
             try:
@@ -263,7 +263,7 @@ def _build():
             self.setBusy_(True)
             self.download = None
             self.headline.setStringValue_('Checking... please wait for the result and cleanup.')
-            self.results.setString_('Running the approved synthetic AI demo. This can use API credits. Keep SwarmGuard open.' if kind == 'demo' else 'Running in a disposable offline workspace.\nChecking restrictions, synthetic file copies, then cleanup.\n\nKeep SwarmGuard open. No network or AI credits are used by offline checks.')
+            self.results.setString_('Running the approved synthetic AI demo. This can use API credits. Keep SwarmGuard open.' if kind == 'demo' else 'Running in a disposable offline workspace.\nSupervising the owned workload, applying policy, then verifying cleanup.\n\nKeep SwarmGuard open. No network or AI credits are used by offline checks.')
             def worker():
                 try:
                     message, download = operation()
@@ -280,6 +280,27 @@ def _build():
                 self.last_check = str(message)
             self.headline.setStringValue_('Finished. Review the result below before continuing.')
             self.setBusy_(False)
+
+        def guardClicked_(self, _sender):
+            if self.busy:
+                return
+            self.sections.selectItemWithTitle_('Safety check')
+            self.sectionChanged_(None)
+            def operation():
+                from managed_guard import prove_intervention
+                result = prove_intervention()
+                text = ['Managed guard proof passed.' if result['proof_passed'] else 'Managed guard needs attention.',
+                        'Synthetic workload, real deny/stop checks. Not an intelligent cloud agent.',
+                        'A source task runs first. A forbidden host-file request is then denied before any host read.',
+                        'Owned workload stopped: ' + str(result['stopped']),
+                        'Scratch container removed: ' + str(result['removed']),
+                        'Outside agents on your Mac are not covered.', '', 'Evidence:']
+                text.extend(event['kind'] + ': ' + json.dumps({k:v for k,v in event.items() if k != 'kind'}) for event in result['events'])
+                if not result['removed']:
+                    text.append('Cleanup needs attention: ' + result['name'])
+                text.append('Next: review this result. No private host files were requested by a real tool; the denied path was synthetic protocol data.')
+                return '\n'.join(text), None
+            self.startWorker_(operation, kind='check')
 
         def checkClicked_(self, _sender):
             if self.busy:

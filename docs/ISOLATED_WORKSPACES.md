@@ -184,3 +184,33 @@ configuration. Menu labels/layout still need an actual Mac screenshot check.
 The panel anchors below the status item when that anchor is available. Pixel
 placement on macOS still requires verification. Asset previews are real rendered
 light/dark small-alpha checks, not a substitute for native screenshot validation.
+
+## Managed guard core (experimental)
+
+`managed_guard.py` is a persistent supervisor for one owned, protocol-speaking
+workload. It is not the prior rotating `autonomy.py` scenario demo. The managed
+workload emits one JSON tool request per line and receives a broker response.
+Only `read_source` on explicit imported files and `write_artifact` into bounded
+in-memory output are implemented. No arbitrary host path, shell, network or key
+forwarding tool exists. Protocol-speaking agents can use this boundary without
+an IDE-specific hook. Other code inside the container still has the container's
+restricted Linux filesystem; broker denial is not a replacement for isolation.
+
+The supervisor owns the generated container, applies policy before any broker
+effect, and on a forbidden/malformed request or limit stops only that workload.
+It inspects stopped state and checks that its exact container name disappears
+after removal. Evidence distinguishes allowed requests, denied-with-no-effect,
+stopping, verified stopped and removal. Missing verification is failure.
+It runs while the workload is active, not as a repeated canned patrol. The Mac
+menu app is not an always-on security daemon and this does not cover other agents.
+
+The native primary action **Test managed guard** uses a synthetic shell workload:
+read synthetic selected source, produce an output artifact, request an unavailable
+host-file tool, then try a later artifact. The proof requires the first artifact,
+the denial, verified workload stop/removal, and absence of the later artifact.
+No real SSH key is opened: the denied path is protocol data and no host-file tool
+is implemented. The workload is synthetic; the stop/prevention is real only when
+verified against a live runtime. Local tests use a real subprocess stream and
+mocked Docker lifecycle. Live OrbStack verification is still required before
+claiming this proof passed on Mac. No intelligent cloud agent is installed or
+called; model investigation remains a separate explicitly approved future layer.
