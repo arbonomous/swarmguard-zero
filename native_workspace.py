@@ -30,10 +30,12 @@ def is_busy() -> bool:
     return bool(_CONTROLLER is not None and _CONTROLLER.busy)
 
 
-def open_workspace() -> None:
+def open_workspace(section: str = "Workspace") -> None:
     global _CONTROLLER
     if _CONTROLLER is None:
         _CONTROLLER = _build()
+    _CONTROLLER.sections.selectItemWithTitle_(section)
+    _CONTROLLER.sectionChanged_(None)
     from AppKit import NSApp
     NSApp.activateIgnoringOtherApps_(True)
     _CONTROLLER.panel.makeKeyAndOrderFront_(None)

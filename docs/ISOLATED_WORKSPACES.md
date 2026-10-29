@@ -159,3 +159,10 @@ paths. Visual box overlays/live multi-step trace presentation are not yet at
 full dashboard parity. Native pixel/layout checks and combined copied-workspace
 runtime verification remain required on Mac. Do not describe this preview as a
 finished visual migration or general computer protection.
+
+The top-level menu preview uses plain status rather than environment variables or
+raw rule IDs. Historical tool denials are summarized once and explicitly may
+include tests; they do not trigger an attack-alert badge. Status/activity and
+isolated-workspace actions select their native sections directly. No active tool
+connection means no connected-tool protection is confirmed, regardless of policy
+configuration. Menu labels/layout still need an actual Mac screenshot check.

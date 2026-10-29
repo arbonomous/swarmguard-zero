@@ -23,3 +23,11 @@ class OverviewTests(unittest.TestCase):
         import native_overview as overview
         for section in ['Status','Attack catalog','Policy checks','Activity and evidence','Latest analysis','About']:
             with self.subTest(section=section):self.assertTrue(overview.section_text(section))
+
+class MenuLanguageTests(unittest.TestCase):
+    def test_no_jargon_or_alarm_from_history(self):
+        import menubar
+        self.assertNotIn('SWARMGUARD',menubar._protecting_line(True))
+        self.assertNotIn('MCP',menubar._gate_label({}))
+        self.assertIn('may include tests',menubar._activity_summary([{'rule':'deny_real_env'}]))
+        self.assertNotIn('deny_',menubar._deny_label({'rule':'deny_real_env'}))

@@ -28,7 +28,7 @@ from threat_bus import read_gate_status, read_incidents  # noqa: E402
 
 REFRESH_S = 7
 PROTECTOR_URL = "http://127.0.0.1:8501"
-DENY_MENU_LIMIT = 5
+DENY_MENU_LIMIT = 1
 DENY_PANEL_LIMIT = 8
 PANEL_W = 360
 PANEL_H = 460
@@ -91,44 +91,30 @@ def _is_policy_or_ide_deny(row: dict[str, Any]) -> bool:
 
 
 def _deny_label(row: dict[str, Any]) -> str:
-    source = str(row.get("source") or "").lower()
-    trigger = str(row.get("trigger") or "").lower()
-    reason = str(row.get("reason") or row.get("rule") or row.get("summary") or "deny")
-    reason = " ".join(reason.split())
-    if len(reason) > 48:
-        reason = reason[:45] + "…"
-    if source == "ide_hook" or trigger == "ide_hook":
-        prefix = "IDE"
-    elif source == "mcp_proxy" or trigger.startswith("mcp"):
-        prefix = "MCP"
-    else:
-        prefix = "Policy"
-    return f"{prefix}: {reason}"
+    rule = str(row.get("rule") or row.get("reason") or "")
+    if "env" in rule or "secret" in rule or "ssh" in rule:
+        return "Sensitive-file request refused"
+    if "localhost" in rule or "egress" in rule or "http" in rule:
+        return "Outside-network request refused"
+    return "Connected tool request refused"
 
 
 def _gate_label(mcp: dict[str, Any]) -> str:
-    if mcp.get("wrapping"):
-        denied = int(mcp.get("denied") or 0)
-        allowed = int(mcp.get("allowed") or 0)
-        return f"MCP gate: wrapping (deny {denied} / allow {allowed})"
-    if mcp.get("active"):
-        return "MCP gate: idle (stale heartbeat)"
-    note = str(mcp.get("note") or "no proxy heartbeat yet")
-    return f"MCP gate: off ({note})"
+    return "Tool connection: active (routed calls only)" if mcp.get("wrapping") else "No active tool connection confirmed"
 
 
 def _gate_short(mcp: dict[str, Any]) -> str:
-    if mcp.get("wrapping"):
-        return "MCP gate: wrapping"
-    if mcp.get("active"):
-        return "MCP gate: idle"
-    return "MCP gate: idle"
+    return _gate_label(mcp)
 
 
 def _protecting_line(enforce: bool) -> str:
-    if enforce:
-        return "Status: Policy ON · scoped hooks only"
-    return "Status: Enforce OFF"
+    return "Tool policy ready (scoped, not whole-Mac)" if enforce else "Tool blocking is OFF"
+
+
+def _activity_summary(rows: list[dict]) -> str:
+    if not rows:
+        return "No tool denials recorded"
+    return f"{len(rows)} recent tool denials (may include tests)"
 
 
 def _status_snapshot() -> dict[str, Any]:
@@ -141,17 +127,15 @@ def _status_snapshot() -> dict[str, Any]:
     has_icon = _menu_icon_path() is not None
     if not enforce:
         title = "·" if has_icon else "SG·"
-    elif denials:
-        title = "!" if has_icon else "SG!"
     else:
         title = "" if has_icon else "SG"
     tip_bits = [
         "SwarmGuard",
-        f"Enforce {'ON' if enforce else 'OFF'}",
+        "Tool policy ready" if enforce else "Tool policy off",
         "wrapping" if mcp.get("wrapping") else "gate idle",
     ]
     if denials:
-        tip_bits.append(f"{len(denials)} recent deny(s)")
+        tip_bits.append("Recorded activity may include tests")
     return {
         "enforce": enforce,
         "mcp": mcp,
@@ -504,7 +488,7 @@ def _build_panel_controller(state: _ProtectorPanelState) -> Any:
             content.addSubview_(self.gate_label)
             y -= 28
 
-            denials_hdr = _make_label("RECENT DENIALS", bold=True, size=11.0, color=_BRAND_MUTED)
+            denials_hdr = _make_label("RECORDED TOOL ACTIVITY (MAY INCLUDE TESTS)", bold=True, size=11.0, color=_BRAND_MUTED)
             denials_hdr.setFrame_(NSMakeRect(12, y, PANEL_W - 24, 18))
             content.addSubview_(denials_hdr)
             y -= 8
@@ -563,7 +547,7 @@ def _build_panel_controller(state: _ProtectorPanelState) -> Any:
             content.addSubview_(refresh_btn)
 
             proof_btn = _make_button(
-                "Run free proofs", "proofsClicked:", self, primary=True
+                "Run safe tool checks...", "proofsClicked:", self, primary=True
             )
             proof_btn.setFrame_(NSMakeRect(120, btn_y, 140, 30))
             content.addSubview_(proof_btn)
@@ -798,27 +782,20 @@ def _run_rumps() -> None:
                 None,
                 *self._deny_items,
                 None,
-                rumps.MenuItem("Open Protector", callback=self._on_open),
-                rumps.MenuItem("Run free proofs", callback=self._on_proofs),
-                rumps.MenuItem("Offline workspace (experimental)", callback=self._on_workspace),
-                rumps.MenuItem("Quit SwarmGuard menu", callback=self._on_quit),
+                rumps.MenuItem("Status and activity...", callback=self._on_open),
+                rumps.MenuItem("Run safe tool checks...", callback=self._on_proofs),
+                rumps.MenuItem("Isolated file workspace...", callback=self._on_workspace),
+                rumps.MenuItem("Quit SwarmGuard", callback=self._on_quit),
             ]
             self._apply_snapshot(_status_snapshot())
 
         def _apply_snapshot(self, snap: dict[str, Any]) -> None:
             self.title = snap["title"]
             self._enforce_item.title = (
-                f"Enforce: {'ON' if snap['enforce'] else 'OFF'} (SWARMGUARD_ENFORCE)"
+                _protecting_line(snap["enforce"])
             )
             self._gate_item.title = _gate_label(snap["mcp"])
-            denials = snap["denials"][:DENY_MENU_LIMIT]
-            for i, item in enumerate(self._deny_items):
-                if i < len(denials):
-                    item.title = _deny_label(denials[i])
-                elif i == 0:
-                    item.title = "(no recent policy/IDE denials)"
-                else:
-                    item.title = " "
+            self._deny_items[0].title = _activity_summary(snap["denials"])
             refresh_protector_panel_if_visible()
 
         @rumps.timer(REFRESH_S)
@@ -826,15 +803,8 @@ def _run_rumps() -> None:
             self._apply_snapshot(_status_snapshot())
 
         def _on_open(self, _sender: Any) -> None:
-            item = _rumps_status_item(self)
-            try:
-                toggle_protector_panel(item, on_refresh=lambda: self._apply_snapshot(_status_snapshot()))
-            except Exception as exc:
-                rumps.notification(
-                    "SwarmGuard",
-                    "Protector",
-                    f"Native panel unavailable ({exc}); use Open full console.",
-                )
+            from native_workspace import open_workspace
+            open_workspace(section="Status")
 
         def _on_proofs(self, _sender: Any) -> None:
             rumps.notification("SwarmGuard", "Free proofs", "Running IDE + MCP demos…")
@@ -937,25 +907,25 @@ def _run_appkit() -> None:
             self.menu.addItem_(NSMenuItem.separatorItem())
 
             open_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
-                "Open Protector", "openProtector:", ""
+                "Status and activity...", "openProtector:", ""
             )
             open_item.setTarget_(self)
             self.menu.addItem_(open_item)
 
             proof_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
-                "Run free proofs", "runProofs:", ""
+                "Run safe tool checks...", "runProofs:", ""
             )
             proof_item.setTarget_(self)
             self.menu.addItem_(proof_item)
 
             workspace_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
-                "Offline workspace (experimental)", "openWorkspace:", ""
+                "Isolated file workspace...", "openWorkspace:", ""
             )
             workspace_item.setTarget_(self)
             self.menu.addItem_(workspace_item)
 
             quit_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
-                "Quit SwarmGuard menu", "quitApp:", ""
+                "Quit SwarmGuard", "quitApp:", ""
             )
             quit_item.setTarget_(self)
             self.menu.addItem_(quit_item)
@@ -982,24 +952,15 @@ def _run_appkit() -> None:
                 button.setTitle_(snap["title"])
                 button.setToolTip_(snap["tooltip"])
             self.enforce_item.setTitle_(
-                f"Enforce: {'ON' if snap['enforce'] else 'OFF'} (SWARMGUARD_ENFORCE)"
+                _protecting_line(snap["enforce"])
             )
             self.gate_item.setTitle_(_gate_label(snap["mcp"]))
-            denials = snap["denials"][:DENY_MENU_LIMIT]
-            for i, item in enumerate(self.deny_items):
-                if i < len(denials):
-                    item.setTitle_(_deny_label(denials[i]))
-                elif i == 0:
-                    item.setTitle_("(no recent policy/IDE denials)")
-                else:
-                    item.setTitle_(" ")
+            self.deny_items[0].setTitle_(_activity_summary(snap["denials"]))
             refresh_protector_panel_if_visible()
 
         def openProtector_(self, _sender) -> None:
-            toggle_protector_panel(
-                self.status_item,
-                on_refresh=lambda: self.applySnapshot_(_status_snapshot()),
-            )
+            from native_workspace import open_workspace
+            open_workspace(section="Status")
 
         def runProofs_(self, _sender) -> None:
             run_free_proofs()
