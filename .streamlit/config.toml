@@ -11,8 +11,6 @@ borderColor = "#1d2736"
 baseRadius = "0.4rem"
 buttonRadius = "0.4rem"
 showWidgetBorder = true
-paddingTop = "1.25rem"
-paddingBottom = "3rem"
 
 [client]
 toolbarMode = "minimal"

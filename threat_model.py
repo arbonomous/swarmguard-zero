@@ -181,9 +181,9 @@ THREAT_CATALOG: list[dict[str, Any]] = [
 
 def coverage_rows() -> list[dict[str, str]]:
     label = {
-        "gate": "Blocked by policy",
-        "muse": "Detected by Meta AI",
-        "both": "Blocked + AI analysis",
+        "gate": "Scoped policy rule",
+        "muse": "AI analysis path",
+        "both": "Scoped rule + analysis",
         "planned": "Not yet (needs deeper hook)",
     }
     rows = []

@@ -34,7 +34,7 @@ The status label confirms policy configuration only, not that IDE hooks have run
 Prove the gates (free, no Meta tokens):
 
 ```bash
-python -m unittest discover -s tests -v  # independent stdio and status regressions
+python -m unittest discover -s tests -v  # offline stdio, status and mocked analysis regressions
 python safe_range/run_enforcement_demo.py   # catalog + rogue
 python safe_range/run_mcp_gate_demo.py      # proxy denies .env/exfil; upstream never sees them
 python safe_range/run_ide_hook_demo.py      # IDE hook denies Read .env + curl evil
@@ -120,3 +120,5 @@ Env flags:
 | Guards | `muse-spark-1.3` |
 | Forensics | `muse-wonder-1.0` |
 | Vision | `sam-3.1` |
+
+Analysis reliability: provider calls have a 30-second timeout and no automatic retries. Invalid report fields fall back to explicitly labeled local analysis. Demo quarantine is simulated; SAFE results do not create a quarantine. Offline tests use mocked providers, not Meta API credits.

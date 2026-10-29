@@ -176,7 +176,7 @@ def _emit(on_step: StepFn | None, stage: str, payload: dict[str, Any] | None = N
 def _client() -> OpenAI | None:
     if not MODEL_API_KEY:
         return None
-    return OpenAI(api_key=MODEL_API_KEY, base_url=META_BASE_URL)
+    return OpenAI(api_key=MODEL_API_KEY, base_url=META_BASE_URL, timeout=30.0, max_retries=0)
 
 
 def _extract_json(text: str) -> dict[str, Any]:
@@ -188,6 +188,41 @@ def _extract_json(text: str) -> dict[str, Any]:
         if match:
             return json.loads(match.group(0))
         raise
+
+
+def _validate_guard(parsed: Any) -> dict[str, Any]:
+    """Treat provider JSON as data, including when strict decoding was requested."""
+    if not isinstance(parsed, dict):
+        raise ValueError("guard report must be an object")
+    score = parsed.get("threat_score")
+    if type(score) is not int or not 0 <= score <= 100:
+        raise ValueError("guard score must be an integer from 0 to 100")
+    if parsed.get("verdict") not in {"SAFE", "CRITICAL THREAT"}:
+        raise ValueError("unknown guard verdict")
+    for key in ("explanation", "visual_findings"):
+        if not isinstance(parsed.get(key), str) or not parsed[key].strip():
+            raise ValueError(f"missing guard {key}")
+    return parsed
+
+
+def _validate_forensic(parsed: Any) -> dict[str, Any]:
+    if not isinstance(parsed, dict):
+        raise ValueError("forensic report must be an object")
+    for key in ("headline", "executive_summary", "recommended_action"):
+        if not isinstance(parsed.get(key), str) or not parsed[key].strip():
+            raise ValueError(f"missing forensic {key}")
+    for key in ("attack_chain", "evidence_quotes"):
+        values = parsed.get(key)
+        if not isinstance(values, list) or not values or not all(
+            isinstance(value, str) and value.strip() for value in values
+        ):
+            raise ValueError(f"forensic {key} must be nonempty text items")
+    if parsed.get("severity") not in {"critical", "high", "medium", "low"}:
+        raise ValueError("unknown forensic severity")
+    confidence = parsed.get("confidence")
+    if type(confidence) not in (int, float) or not 0 <= confidence <= 1:
+        raise ValueError("forensic confidence must be from 0 to 1")
+    return parsed
 
 
 def _fallback_evidence_quotes(
@@ -211,10 +246,6 @@ def _fallback_evidence_quotes(
             if idx >= 0:
                 snippet = evidence[idx : idx + min(120, len(evidence) - idx)].strip()
                 quotes.append(snippet)
-    for report in reports or []:
-        vf = str(report.get("visual_findings") or "").strip()
-        if vf and vf.lower() != "n/a" and len(vf) >= 12:
-            quotes.append(vf[:160])
     # Dedupe preserving order
     seen: set[str] = set()
     out: list[str] = []
@@ -226,7 +257,7 @@ def _fallback_evidence_quotes(
         out.append(key)
         if len(out) >= 4:
             break
-    return out or ["Suspicious agent telemetry intercepted by SwarmGuard."]
+    return out or ([evidence.strip()[:160]] if evidence.strip() else [])
 
 
 def _image_data_url(path: Path) -> str:
@@ -351,14 +382,14 @@ def analyze_with_guard(
         content = response.choices[0].message.content
         if not content:
             raise RuntimeError(f"empty_model_content finish={response.choices[0].finish_reason}")
-        parsed = _extract_json(content)
+        parsed = _validate_guard(_extract_json(content))
         explanation = str(parsed.get("explanation", "")).strip()
         if not explanation:
             raise RuntimeError("model_json_missing_explanation")
         result = {
             "threat_score": int(parsed.get("threat_score", 0)),
             "verdict": str(parsed.get("verdict", "SAFE")),
-            "agent_triggered": str(parsed.get("agent_triggered") or agent),
+            "agent_triggered": agent,
             "explanation": explanation,
             "visual_findings": str(parsed.get("visual_findings", "n/a")).strip(),
             "source": "meta_model_api",
@@ -399,7 +430,7 @@ def synthesize_forensic_report(
             "Correlate secret/file + network + injection signals",
             "Raise CRITICAL HUD alert",
         ],
-        "evidence_quotes": [],
+        "evidence_quotes": _fallback_evidence_quotes(evidence, reports),
         "severity": "high" if reports and reports[0].get("threat_score", 0) >= 80 else "medium",
         "confidence": 0.55,
         "source": "fallback_synthesis",
@@ -468,7 +499,7 @@ def synthesize_forensic_report(
         content = response.choices[0].message.content
         if not content:
             raise RuntimeError("empty_wonder_content")
-        parsed = _extract_json(content)
+        parsed = _validate_forensic(_extract_json(content))
         result = {
             "headline": str(parsed.get("headline", fallback["headline"])).strip(),
             "executive_summary": str(

@@ -62,6 +62,26 @@ def auto_eliminate(
     top = result["top"]
     forensic = result.get("forensic") or {}
 
+    if top.get("verdict") != "CRITICAL THREAT":
+        # A SAFE result must never become a quarantine in the activity feed.
+        incident = {
+            "trigger": trigger,
+            "scenario_id": result.get("scenario_id"),
+            "title": result.get("title"),
+            "threat_score": top.get("threat_score"),
+            "verdict": top.get("verdict"),
+            "agent": top.get("agent_triggered"),
+            "headline": "No threat confirmed",
+            "executive_summary": top.get("explanation") or "The analysis did not confirm a threat.",
+            "action": "NO_THREAT",
+            "action_detail": "No threat confirmed. No process or artifact was changed.",
+            "simulation": True,
+        }
+        append_incident(incident)
+        if on_step:
+            on_step("auto:clear", incident)
+        return incident
+
     if on_step:
         on_step("auto:threat", {"score": top.get("threat_score"), "agent": top.get("agent_triggered")})
 
@@ -89,9 +109,10 @@ def auto_eliminate(
         "recommended_action": forensic.get("recommended_action"),
         "evidence_quotes": forensic.get("evidence_quotes") or [],
         "action": "AUTO_QUARANTINED",
+        "simulation": True,
         "action_detail": (
-            f"SwarmGuard froze demo PID {result.get('pid')} and quarantined the "
-            "originating agent artifact without waiting for user approval."
+            f"Simulated quarantine for demo PID {result.get('pid')}. "
+            "No real process was stopped and no artifact was moved."
         ),
         "models_used": result.get("models_used"),
         "eliminated_at": datetime.now().strftime("%H:%M:%S"),
@@ -104,7 +125,7 @@ def auto_eliminate(
     reset_to_safe(
         note=(
             f"AUTO-QUARANTINED · {forensic.get('headline') or result.get('title')} · "
-            f"PID {result.get('pid')} eliminated. Swarm re-armed."
+            "Simulation only; no real process stopped."
         ),
         last_action="auto_quarantine",
     )

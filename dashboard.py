@@ -140,9 +140,11 @@ def humanize_step(stage: str, payload: dict) -> str:
     if stage.startswith("sam:"):
         return "Marking the dangerous part of the file"
     if stage == "auto:threat":
-        return "Threat confirmed — stopping the demo helper"
+        return "Threat confirmed - recording simulated containment"
+    if stage == "auto:clear":
+        return "No threat confirmed; nothing quarantined"
     if stage == "auto:quarantine":
-        return "Stopped and logged (safe mode — no real apps were force-quit)"
+        return "Simulated containment logged; no real app was stopped"
     if stage == "scenario:complete":
         return "Finished"
     return "Working…"
@@ -171,7 +173,8 @@ def run_demo(scenario_id: str) -> None:
         )
 
     progress.progress(1.0, text="Done")
-    play("quarantine")
+    if incident.get("action") == "AUTO_QUARANTINED":
+        play("quarantine")
     play("armed")
     result["ran_at"] = datetime.now().strftime("%H:%M:%S")
     st.session_state["last_result"] = result
@@ -190,6 +193,8 @@ def _activity_kind_label(row: dict) -> str:
         return "IDE hook deny"
     if kind == "policy_deny":
         return "Policy deny"
+    if str(row.get("action") or "") == "NO_THREAT":
+        return "No threat confirmed"
     if kind == "muse_quarantine":
         return "Muse quarantine"
     action = str(row.get("action") or "").upper()
@@ -210,11 +215,10 @@ def render_hero(api_ok: bool, gate_on: bool, incident_count: int, mcp_status: di
             st.title("SwarmGuard")
     else:
         st.title("SwarmGuard")
-    st.markdown("#### Protection for your computer against sneaky AI helpers.")
+    st.markdown("#### Agent security, with explicit boundaries.")
     st.caption(
-        "Quiet antivirus for AI agents — watches for tricks that steal passwords or keys, "
-        "blocks dangerous actions when it can, and keeps a simple activity log. "
-        "You should not need to babysit a dashboard."
+        "Policy checks apply only to connected hooks and wrapped MCP tools. "
+        "This build does not monitor or block every process on your computer."
     )
 
     mcp_wrapping = bool(mcp_status.get("wrapping"))
@@ -229,16 +233,16 @@ def render_hero(api_ok: bool, gate_on: bool, incident_count: int, mcp_status: di
         )
     elif gate_on and not api_ok:
         st.warning(
-            "Policy blocking is on (no internet AI needed for that). "
+            "Policy is configured on for connected hooks and wrapped MCP tools. "
             "Add a Meta API key to unlock deeper attack analysis.",
             icon=":material/shield_with_house:",
-            title="Basic protection on",
+            title="Scoped policy configured",
         )
     else:
         st.error(
             "Set SWARMGUARD_ENFORCE=1 (the default) so SwarmGuard can deny dangerous actions.",
             icon=":material/gpp_bad:",
-            title="Protection is off",
+            title="Policy is off",
         )
 
     if mcp_wrapping:
@@ -255,22 +259,22 @@ def render_hero(api_ok: bool, gate_on: bool, incident_count: int, mcp_status: di
         )
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Policy gate", "On" if gate_on else "Off")
+    c1.metric("Policy config", "On" if gate_on else "Off")
     c2.metric("MCP gate", "Wrapping tools" if mcp_wrapping else "Idle")
-    c3.metric("AI analysis", "Ready" if api_ok else "Needs key")
-    c4.metric("Stops logged", incident_count)
+    c3.metric("AI key", "Set" if api_ok else "Missing")
+    c4.metric("Activity logged", incident_count)
 
 
 def render_coverage() -> None:
-    st.subheader("What we protect against", anchor=False)
+    st.subheader("Attack catalog and test coverage", anchor=False)
     counts = summary_counts()
     st.caption(
-        f"{counts['active']} of {counts['total']} attack classes have an active defense in this build. "
-        "Policy checks do not spend Meta API tokens."
+        f"{counts['active']} of {counts['total']} catalog classes have a policy rule or analysis path. "
+        "This is not a prevention rate. Local probes do not prove host-wide coverage."
     )
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Policy blocks", counts["gate"] + counts["both"])
-    m2.metric("AI detects", counts["muse"] + counts["both"])
+    m1.metric("Rule classes", counts["gate"] + counts["both"])
+    m2.metric("Analysis classes", counts["muse"] + counts["both"])
     m3.metric("Both", counts["both"])
     m4.metric("Still planned", counts["planned"])
 
@@ -286,9 +290,9 @@ def render_coverage() -> None:
         )
     else:
         st.success(
-            f"Ran {len(probes)} live deny-probes (secrets, exfil, reverse shell, sudo, docker, …) — all blocked.",
+            f"{len(probes)} synthetic policy inputs returned deny. No real host actions were attempted.",
             icon=":material/verified:",
-            title="Gate is enforcing",
+            title="Local policy checks passed",
         )
 
     with st.expander("Probe details"):
@@ -346,7 +350,8 @@ def render_activity(incident: dict | None, result: dict | None) -> None:
     if incident and result:
         with st.container(border=True):
             kind = _activity_kind_label(incident)
-            st.markdown(f"**Latest stop** · {kind}")
+            label = "Latest analysis" if incident.get("action") == "NO_THREAT" else "Latest demo result"
+            st.markdown(f"**{label}** · {kind}")
             st.write(incident.get("headline") or incident.get("title") or "Threat stopped")
             st.write(
                 incident.get("executive_summary")
@@ -400,7 +405,7 @@ def render_activity(incident: dict | None, result: dict | None) -> None:
         st.info(
             "Nothing newer in this session. Older stops are listed below.",
             icon=":material/notifications_none:",
-            title="All clear",
+            title="No newer logged activity",
         )
     else:
         st.info(
