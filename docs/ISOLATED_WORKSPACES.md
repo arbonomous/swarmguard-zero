@@ -130,3 +130,32 @@ text, 1 MiB per source file, 1 MiB command output, 6 MiB archive stream. Each
 Docker operation and the full workflow have deadlines; cleanup has its own
 15-second attempt even when the workflow deadline expires. A cleanup failure
 names the exact generated container for attention, never prunes other workloads.
+
+## Native menu workflow
+
+The menu workspace action now opens an AppKit panel owned by the menu app,
+not Streamlit or a browser. The Protector panel's workspace action uses the same
+native panel; the normal menu no longer has a dashboard entry. The dashboard
+source is retained as a development surface, not the primary user workflow.
+Native file selection reads only selected source; a modal review confirms the
+exact byte snapshot, command and output names before execution. Native save
+creates a new archive and refuses to overwrite an existing file. Menu Quit waits
+while the workspace is busy so ordinary quitting does not interrupt cleanup.
+Keep the launcher Terminal open during a run; forced process termination can
+still interrupt cleanup. Missing AppKit/runtime/image fails, never installs.
+
+This native layout is source/unit-checked only until inspected on a real Mac.
+The next verification is one native **Run complete offline check** and a screenshot
+of the native results. It combines the existing restriction probes and synthetic
+copy/execute/pause/export/cleanup without private project files.
+
+Native migration preview adds a compact section picker: scoped status, attack
+catalog, synthetic policy checks, activity/evidence, latest analysis, workspace
+and model/about details. Optional synthetic AI scenarios require a separate
+credit-use confirmation, and missing analysis dependencies do not auto-install.
+Sound preview and notice acknowledgement stay native. A native image viewer
+opens only fixed local synthetic artifacts, never arbitrary incident-supplied
+paths. Visual box overlays/live multi-step trace presentation are not yet at
+full dashboard parity. Native pixel/layout checks and combined copied-workspace
+runtime verification remain required on Mac. Do not describe this preview as a
+finished visual migration or general computer protection.

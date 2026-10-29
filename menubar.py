@@ -199,8 +199,10 @@ open_protector = open_full_console
 
 
 def open_offline_workspace() -> str:
-    """Native menu entry for the copied workspace. No runtime launch on open."""
-    return open_full_console(workspace=True)
+    """Native menu-owned workspace. Never starts or opens a browser."""
+    from native_workspace import open_workspace
+    open_workspace()
+    return "Opened native offline workspace."
 
 
 def run_free_proofs() -> str:
@@ -567,13 +569,13 @@ def _build_panel_controller(state: _ProtectorPanelState) -> Any:
             content.addSubview_(proof_btn)
 
             console_btn = _make_button(
-                "Open full console…", "consoleClicked:", self
+                "Offline workspace…", "consoleClicked:", self
             )
             console_btn.setFrame_(NSMakeRect(12, btn_y - 38, PANEL_W - 24, 28))
             content.addSubview_(console_btn)
 
             hint = _make_label(
-                "Advanced: Streamlit deep console in browser",
+                "Local copied files and offline checks - no browser",
                 size=10.0,
                 color=_BRAND_MUTED,
             )
@@ -713,7 +715,7 @@ def _build_panel_controller(state: _ProtectorPanelState) -> Any:
             self.reloadSnapshot_(None)
 
         def consoleClicked_(self, _sender) -> None:
-            msg = open_full_console()
+            msg = open_offline_workspace()
             if self.proof_status is not None:
                 self.proof_status.setStringValue_(msg)
 
@@ -799,9 +801,6 @@ def _run_rumps() -> None:
                 rumps.MenuItem("Open Protector", callback=self._on_open),
                 rumps.MenuItem("Run free proofs", callback=self._on_proofs),
                 rumps.MenuItem("Offline workspace (experimental)", callback=self._on_workspace),
-                rumps.MenuItem(
-                    "Open full console (advanced)…", callback=self._on_console
-                ),
                 rumps.MenuItem("Quit SwarmGuard menu", callback=self._on_quit),
             ]
             self._apply_snapshot(_status_snapshot())
@@ -851,6 +850,10 @@ def _run_rumps() -> None:
             rumps.notification("SwarmGuard", "Full console", msg)
 
         def _on_quit(self, _sender: Any) -> None:
+            from native_workspace import is_busy
+            if is_busy():
+                open_offline_workspace()
+                return
             _release_instance_lock()
             rumps.quit_application()
 
@@ -951,12 +954,6 @@ def _run_appkit() -> None:
             workspace_item.setTarget_(self)
             self.menu.addItem_(workspace_item)
 
-            console_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
-                "Open full console (advanced)…", "openConsole:", ""
-            )
-            console_item.setTarget_(self)
-            self.menu.addItem_(console_item)
-
             quit_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
                 "Quit SwarmGuard menu", "quitApp:", ""
             )
@@ -1015,6 +1012,10 @@ def _run_appkit() -> None:
             open_full_console()
 
         def quitApp_(self, _sender) -> None:
+            from native_workspace import is_busy
+            if is_busy():
+                open_offline_workspace()
+                return
             if self.timer is not None:
                 self.timer.invalidate()
                 self.timer = None
