@@ -477,6 +477,28 @@ def render_see_it_work(api_ok: bool) -> None:
                     run_demo(demo["id"])
 
 
+def render_isolation() -> None:
+    from isolation_check import check
+    st.subheader("Offline isolation", anchor=False)
+    st.caption(
+        "Runs a disposable test in OrbStack using the already-local, source-verified Redis image. "
+        "No downloads, host folders, credentials or model calls. Other agents are not covered."
+    )
+    if st.button("Check offline isolation", key="check_isolation"):
+        with st.spinner("Checking the disposable container and cleanup..."):
+            st.session_state["isolation_result"] = check()
+    result = st.session_state.get("isolation_result")
+    if result:
+        if result["passed"]:
+            st.success("Offline checks passed. This is not whole-Mac protection.")
+        else:
+            st.warning(result.get("detail", "Isolation check failed. Do not bypass the restrictions."))
+        st.caption("Last check: " + result["checked_at"])
+        for name, passed in result["checks"].items():
+            st.write(("PASS: " if passed else "FAIL: ") + name.replace("-", " "))
+        st.caption("These synthetic checks do not test container escape or prove all attacks are blocked.")
+
+
 def render_about() -> None:
     with st.expander("How SwarmGuard thinks about protection"):
         st.markdown(
@@ -516,6 +538,8 @@ def main() -> None:
     render_coverage()
     st.divider()
     render_activity(incident, result)
+    st.divider()
+    render_isolation()
     st.divider()
     render_see_it_work(api_ok)
     render_about()

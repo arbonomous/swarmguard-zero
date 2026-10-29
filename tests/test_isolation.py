@@ -68,3 +68,21 @@ class IsolationTests(unittest.TestCase):
 
 
 if __name__ == "__main__": unittest.main()
+
+class DockerProcessTests(unittest.TestCase):
+    def test_output_is_bounded(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            exe=Path(tmp)/'docker'
+            exe.write_text('#!/bin/sh\nhead -c 1100000 /dev/zero\n');exe.chmod(0o700)
+            with patch.dict(os.environ, {'PATH':tmp+os.pathsep+os.environ['PATH']}):
+                with self.assertRaisesRegex(ValueError,'output limit'):
+                    runner.docker('version')
+    def test_timeout_is_bounded(self):
+        import os, tempfile, subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            exe=Path(tmp)/'docker'
+            exe.write_text('#!/bin/sh\nexec sleep 3\n');exe.chmod(0o700)
+            with patch.dict(os.environ, {'PATH':tmp+os.pathsep+os.environ['PATH']}):
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    runner.docker('version',timeout=1)

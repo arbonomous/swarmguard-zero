@@ -10,6 +10,8 @@ import argparse
 import json
 import os
 import re
+import selectors
+import time
 import subprocess
 import sys
 import uuid
@@ -23,8 +25,42 @@ def docker(*args: str, timeout: int = 15) -> subprocess.CompletedProcess[str]:
     # Explicit context must not be redirected to another daemon by inherited env.
     for key in ("DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH"):
         env.pop(key, None)
-    return subprocess.run(["docker", "--context", CONTEXT, *args], env=env,
-                          capture_output=True, text=True, timeout=timeout, check=True)
+    argv = ["docker", "--context", CONTEXT, *args]
+    # Bound hostile command output as well as runtime. Never buffer without limit.
+    proc = subprocess.Popen(argv, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    streams = selectors.DefaultSelector()
+    chunks = {"stdout": bytearray(), "stderr": bytearray()}
+    for key in chunks:
+        streams.register(getattr(proc, key), selectors.EVENT_READ, key)
+    deadline = time.monotonic() + timeout
+    total = 0
+    try:
+        while streams.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(argv, timeout)
+            for event, _ in streams.select(min(remaining, 0.2)):
+                data = os.read(event.fd, 65536)
+                if not data:
+                    streams.unregister(event.fileobj)
+                    continue
+                total += len(data)
+                if total > 1024 * 1024:
+                    raise ValueError("Docker output limit exceeded (1 MiB)")
+                chunks[event.data].extend(data)
+        code = proc.wait(timeout=max(0.01, deadline - time.monotonic()))
+        out, err = (chunks[key].decode("utf-8", errors="replace") for key in chunks)
+        if code:
+            raise subprocess.CalledProcessError(code, argv, out, err)
+        return subprocess.CompletedProcess(argv, code, out, err)
+    finally:
+        streams.close()
+        if proc.poll() is None:
+            proc.kill()
+        proc.wait()
+        proc.stdout.close()
+        proc.stderr.close()
+
 
 
 def local_image(reference: str) -> str:
@@ -92,8 +128,9 @@ def run(image: str, command: list[str], seconds: int = 60) -> int:
     name = "swarmguard-" + uuid.uuid4().hex
     created = False
     try:
-        docker(*create_args(image_id, name, command))
-        created = True
+        args = create_args(image_id, name, command)
+        created = True  # create can time out after daemon-side success; clean this name anyway.
+        docker(*args)
         data = json.loads(docker("inspect", name).stdout)[0]
         verify_container(data, name, image_id)
         print("SwarmGuard: verified offline scratch boundary. No host mounts. Not whole-Mac protection.", flush=True)

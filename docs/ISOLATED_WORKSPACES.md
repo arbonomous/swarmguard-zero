@@ -61,3 +61,33 @@ separate supported macOS security architecture and installation consent.
 - https://docs.orbstack.dev/docker/file-sharing
 - https://docs.orbstack.dev/architecture
 - https://docs.docker.com/reference/cli/docker/container/run/
+
+## In-app check
+
+The advanced console now has **Check offline isolation**. It uses the exact
+Redis image fingerprint matched to Docker Hub's official library/redis registry
+on October 29, 2026, only if already local. It does not install a test image.
+The check covers scratch writes, read-only root, loopback-only interfaces,
+common host/socket path absence, zero effective capabilities, no-new-privileges
+and leftover labeled containers. Missing runtime/image or failed checks remain
+failures, never automatic fallback. Results show the check time and scoped tests,
+not a persistent whole-computer protection badge.
+
+A local OrbStack test passed the startup, scratch and restriction probes on
+October 29, 2026. That is one machine/runtime observation, not proof for every machine or
+against hostile kernel/container escape. No external exfiltration request was sent.
+
+## Network-dependent agents: not enabled
+
+No network-enabled mode is implemented. Do not replace `--network=none` with a
+bridge to make cloud agents work. A future broker should keep credentials on the
+host, accept only a narrow model request schema, use fixed provider endpoints,
+reject caller-chosen URLs/headers and arbitrary tool forwarding, cap request and
+response bytes, cap calls/cost/time, and default to no inference without approval.
+Domain allowlisting alone cannot stop private text being sent to an allowed model
+API. Tools and project imports/exports need separate policy and explicit scope.
+
+A broker must have synthetic offline transport tests first, then a separately
+approved local network test before any provider request. Existing API keys are
+not permission to spend. This is a design constraint, not a claim that a broker
+or usable cloud-agent workspace already exists.
