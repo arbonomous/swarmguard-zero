@@ -31,3 +31,13 @@ class MenuLanguageTests(unittest.TestCase):
         self.assertNotIn('MCP',menubar._gate_label({}))
         self.assertIn('may include tests',menubar._activity_summary([{'rule':'deny_real_env'}]))
         self.assertNotIn('deny_',menubar._deny_label({'rule':'deny_real_env'}))
+
+class MenuFlowTests(unittest.TestCase):
+    def test_no_direct_tests_in_menu_handlers(self):
+        import inspect,menubar
+        source=inspect.getsource(menubar)
+        self.assertIn('open_workspace(section="Safety check"',source)
+        for name in ('_on_proofs','runProofs_'):
+            body=source.split('def '+name,1)[1].split('\n        def ',1)[0]
+            self.assertNotIn('run_free_proofs()',body)
+            self.assertIn('Safety check',body)

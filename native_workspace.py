@@ -30,13 +30,27 @@ def is_busy() -> bool:
     return bool(_CONTROLLER is not None and _CONTROLLER.busy)
 
 
-def open_workspace(section: str = "Workspace") -> None:
+def open_workspace(section: str = "Workspace", status_item=None) -> None:
     global _CONTROLLER
     if _CONTROLLER is None:
         _CONTROLLER = _build()
     _CONTROLLER.sections.selectItemWithTitle_(section)
     _CONTROLLER.sectionChanged_(None)
     from AppKit import NSApp
+    if status_item is not None:
+        try:
+            button = status_item.button()
+            window = button.window()
+            screen = window.screen()
+            anchor = window.convertRectToScreen_(button.convertRect_toView_(button.bounds(), None))
+            visible = screen.visibleFrame()
+            size = _CONTROLLER.panel.frame().size
+            x = max(visible.origin.x + 8, min(anchor.origin.x + anchor.size.width / 2 - size.width / 2,
+                                             visible.origin.x + visible.size.width - size.width - 8))
+            y = max(visible.origin.y + 8, anchor.origin.y - size.height - 28)
+            _CONTROLLER.panel.setFrameOrigin_((x, y))
+        except (AttributeError, TypeError):
+            _CONTROLLER.panel.center()
     NSApp.activateIgnoringOtherApps_(True)
     _CONTROLLER.panel.makeKeyAndOrderFront_(None)
 
@@ -85,19 +99,27 @@ def _build():
             def entry(text, y):
                 field = NSTextField.alloc().initWithFrame_(NSMakeRect(18, y, 554, 28))
                 field.setStringValue_(text);content.addSubview_(field);return field
-            self.sections = NSPopUpButton.alloc().initWithFrame_pullsDown_(NSMakeRect(18, 616, 330, 28), False)
-            self.sections.addItemsWithTitles_(['Status', 'Attack catalog', 'Policy checks', 'Activity and evidence', 'Latest analysis', 'Workspace', 'About'])
+            self.sections = NSPopUpButton.alloc().initWithFrame_pullsDown_(NSMakeRect(18, 540, 330, 28), False)
+            self.sections.addItemsWithTitles_(['Status', 'Attack catalog', 'Policy checks', 'Activity and evidence', 'Latest analysis', 'Safety check', 'Workspace', 'About'])
             self.sections.setTarget_(self);self.sections.setAction_('sectionChanged:');content.addSubview_(self.sections)
-            button('Show details', 'sectionChanged:', 365, 616, 205)
-            self.scenarios = NSPopUpButton.alloc().initWithFrame_pullsDown_(NSMakeRect(18, 578, 330, 28), False)
+            button('Show details', 'sectionChanged:', 365, 540, 205)
+            mark = NSImage.alloc().initWithContentsOfFile_(str(Path(__file__).resolve().parent / 'assets' / 'brand' / 'swarmguard-mark.png'))
+            brand = NSImageView.alloc().initWithFrame_(NSMakeRect(18, 596, 36, 36))
+            brand.setImage_(mark);brand.setImageScaling_(0);content.addSubview_(brand)
+            title = NSTextField.labelWithString_('SwarmGuard')
+            title.setFrame_(NSMakeRect(66, 608, 280, 24));content.addSubview_(title)
+            self.headline = label('Ready to check. This is not whole-Mac protection.', 572, 24)
+            self.home_button = button('Run safety check', 'checkClicked:', 365, 596, 205)
+            before_details = len(content.subviews())
+            self.scenarios = NSPopUpButton.alloc().initWithFrame_pullsDown_(NSMakeRect(18, 500, 330, 28), False)
             self.scenarios.addItemsWithTitles_(['Hidden document trap', 'Stolen keys over network', 'Webpage hijack'])
             content.addSubview_(self.scenarios)
-            button('Review AI demo...', 'demoClicked:', 365, 578, 205)
-            button('Sound preview', 'soundClicked:', 18, 540, 170)
-            button('Clear latest notice', 'clearClicked:', 200, 540, 175)
-            button('Refresh status', 'sectionChanged:', 385, 540, 185)
-            button('View latest visual evidence', 'visualClicked:', 18, 502, 265)
-            self.top_views = list(content.subviews())[2:]
+            button('Review AI demo...', 'demoClicked:', 365, 500, 205)
+            button('Sound preview', 'soundClicked:', 18, 462, 170)
+            button('Clear latest notice', 'clearClicked:', 200, 462, 175)
+            button('Refresh status', 'sectionChanged:', 385, 462, 185)
+            button('View latest visual evidence', 'visualClicked:', 18, 424, 265)
+            self.top_views = list(content.subviews())[before_details:]
             before_workspace = len(content.subviews())
             label('Offline copied files only. No host mounts, keys, downloads or cloud agents.\nAgents running elsewhere are not protected.', 598, 44)
             self.check_button = button('Run complete offline check', 'checkClicked:', 18, 556, 265)
@@ -114,7 +136,7 @@ def _build():
             self.workspace_views = list(content.subviews())[before_workspace:]
             for view in self.workspace_views:
                 frame = view.frame()
-                view.setFrameOrigin_((frame.origin.x, frame.origin.y - 32))
+                view.setFrameOrigin_((frame.origin.x, frame.origin.y - 110))
             scroll = NSScrollView.alloc().initWithFrame_(NSMakeRect(18, 48, 554, 229))
             self.scroll = scroll
             scroll.setHasVerticalScroller_(True)
@@ -139,7 +161,12 @@ def _build():
                 view.setHidden_(not workspace)
             for view in self.top_views:
                 view.setHidden_(workspace)
-            self.scroll.setFrame_(NSMakeRect(18, 48, 554, 197 if workspace else 430))
+            details = self.mode not in ('Status', 'Safety check', 'Workspace')
+            for view in self.top_views:
+                view.setHidden_(not details)
+            self.scroll.setFrame_(NSMakeRect(18, 48, 554, 120 if workspace else (350 if details else 470)))
+            if self.mode == 'Safety check':
+                self.results.setString_(getattr(self, 'last_check', 'Not checked yet.\n\nChoose Run safety check above. We will test a disposable offline container and synthetic file copies, then remove it.\n\nNo private files, downloads, network or AI credits. If it fails, stop and review the result.'));return
             if workspace:
                 self.results.setString_('Offline scratch only. Run the complete check first. No cloud agent is installed.');return
             try:
@@ -199,10 +226,12 @@ def _build():
                 result, incident = run_autonomous_scenario(scenario, trigger='native_user_approved_demo')
                 self.last_analysis = result
                 return json.dumps({'result': result, 'incident': incident}, indent=2, ensure_ascii=False), None
-            self.startWorker_(operation)
+            self.startWorker_(operation, kind='demo')
 
         def setBusy_(self, value):
             self.busy = bool(value)
+            self.home_button.setEnabled_(not self.busy)
+            self.sections.setEnabled_(not self.busy)
             for view in (self.check_button, self.pick_button, self.run_button, self.command, self.exports):
                 view.setEnabled_(not self.busy)
             self.save_button.setEnabled_(not self.busy and self.download is not None)
@@ -229,10 +258,12 @@ def _build():
                     self.paths = [];self.selection.setStringValue_('Selection refused. Choose safe source files.')
                     self.showError_(str(exc))
 
-        def startWorker_(self, operation):
+        def startWorker_(self, operation, kind='workspace'):
+            self.operation_kind = kind
             self.setBusy_(True)
             self.download = None
-            self.results.setString_('Running offline. No private host folders or network access. Waiting for cleanup...')
+            self.headline.setStringValue_('Checking... please wait for the result and cleanup.')
+            self.results.setString_('Running the approved synthetic AI demo. This can use API credits. Keep SwarmGuard open.' if kind == 'demo' else 'Running in a disposable offline workspace.\nChecking restrictions, synthetic file copies, then cleanup.\n\nKeep SwarmGuard open. No network or AI credits are used by offline checks.')
             def worker():
                 try:
                     message, download = operation()
@@ -245,11 +276,16 @@ def _build():
 
         def finished_(self, message):
             self.results.setString_(str(message))
+            if self.operation_kind == 'check':
+                self.last_check = str(message)
+            self.headline.setStringValue_('Finished. Review the result below before continuing.')
             self.setBusy_(False)
 
         def checkClicked_(self, _sender):
             if self.busy:
                 return
+            self.sections.selectItemWithTitle_('Safety check')
+            self.sectionChanged_(None)
             def operation():
                 from isolation_check import check, check_workspace
                 result = check()
@@ -260,10 +296,11 @@ def _build():
                     result['passed'] = copied['passed']
                 elif result.get('detail'):
                     lines.append(result['detail'])
-                lines.insert(0, 'Offline check passed.' if result['passed'] else 'Offline check failed or unavailable.')
+                lines.insert(0, 'Safety check passed.' if result['passed'] else 'Safety check needs attention.')
+                lines.append('Next: choose Workspace to run on selected source copies.' if result['passed'] else 'Next: leave your project unchanged. Send this result for help; do not bypass restrictions.')
                 lines.extend(['Checked: ' + result['checked_at'], 'Not whole-Mac protection. No installed cloud agent.'])
                 return '\n'.join(lines), None
-            self.startWorker_(operation)
+            self.startWorker_(operation, kind='check')
 
         def runClicked_(self, _sender):
             if self.busy:

@@ -182,10 +182,10 @@ def open_full_console(*, workspace: bool = False) -> str:
 open_protector = open_full_console
 
 
-def open_offline_workspace() -> str:
+def open_offline_workspace(status_item=None) -> str:
     """Native menu-owned workspace. Never starts or opens a browser."""
     from native_workspace import open_workspace
-    open_workspace()
+    open_workspace(status_item=status_item)
     return "Opened native offline workspace."
 
 
@@ -547,7 +547,7 @@ def _build_panel_controller(state: _ProtectorPanelState) -> Any:
             content.addSubview_(refresh_btn)
 
             proof_btn = _make_button(
-                "Run safe tool checks...", "proofsClicked:", self, primary=True
+                "Safety check...", "proofsClicked:", self, primary=True
             )
             proof_btn.setFrame_(NSMakeRect(120, btn_y, 140, 30))
             content.addSubview_(proof_btn)
@@ -777,14 +777,10 @@ def _run_rumps() -> None:
             self.menu = [
                 header,
                 None,
-                self._enforce_item,
-                self._gate_item,
-                None,
-                *self._deny_items,
-                None,
-                rumps.MenuItem("Status and activity...", callback=self._on_open),
-                rumps.MenuItem("Run safe tool checks...", callback=self._on_proofs),
-                rumps.MenuItem("Isolated file workspace...", callback=self._on_workspace),
+                rumps.MenuItem("Open SwarmGuard...", callback=self._on_open),
+                rumps.MenuItem("Safety check...", callback=self._on_proofs),
+                rumps.MenuItem("Activity...", callback=self._on_activity),
+                rumps.MenuItem("Workspace...", callback=self._on_workspace),
                 rumps.MenuItem("Quit SwarmGuard", callback=self._on_quit),
             ]
             self._apply_snapshot(_status_snapshot())
@@ -804,16 +800,18 @@ def _run_rumps() -> None:
 
         def _on_open(self, _sender: Any) -> None:
             from native_workspace import open_workspace
-            open_workspace(section="Status")
+            open_workspace(section="Status", status_item=_rumps_status_item(self))
 
         def _on_proofs(self, _sender: Any) -> None:
-            rumps.notification("SwarmGuard", "Free proofs", "Running IDE + MCP demos…")
-            msg = run_free_proofs()
-            self._apply_snapshot(_status_snapshot())
-            rumps.notification("SwarmGuard", "Free proofs", msg[:180])
+            from native_workspace import open_workspace
+            open_workspace(section="Safety check", status_item=_rumps_status_item(self))
+
+        def _on_activity(self, _sender: Any) -> None:
+            from native_workspace import open_workspace
+            open_workspace(section="Activity and evidence", status_item=_rumps_status_item(self))
 
         def _on_workspace(self, _sender: Any) -> None:
-            open_offline_workspace()
+            open_offline_workspace(_rumps_status_item(self))
 
         def _on_console(self, _sender: Any) -> None:
             msg = open_full_console()
@@ -822,7 +820,7 @@ def _run_rumps() -> None:
         def _on_quit(self, _sender: Any) -> None:
             from native_workspace import is_busy
             if is_busy():
-                open_offline_workspace()
+                open_offline_workspace(_rumps_status_item(self))
                 return
             _release_instance_lock()
             rumps.quit_application()
@@ -892,9 +890,6 @@ def _run_appkit() -> None:
             self.gate_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
                 "MCP gate: …", None, ""
             )
-            self.menu.addItem_(self.enforce_item)
-            self.menu.addItem_(self.gate_item)
-            self.menu.addItem_(NSMenuItem.separatorItem())
 
             self.deny_items = []
             for _ in range(DENY_MENU_LIMIT):
@@ -902,24 +897,28 @@ def _run_appkit() -> None:
                     "(no recent denials)", None, ""
                 )
                 self.deny_items.append(item)
-                self.menu.addItem_(item)
 
-            self.menu.addItem_(NSMenuItem.separatorItem())
 
             open_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
-                "Status and activity...", "openProtector:", ""
+                "Open SwarmGuard...", "openProtector:", ""
             )
             open_item.setTarget_(self)
             self.menu.addItem_(open_item)
 
             proof_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
-                "Run safe tool checks...", "runProofs:", ""
+                "Safety check...", "runProofs:", ""
             )
             proof_item.setTarget_(self)
             self.menu.addItem_(proof_item)
 
+            activity_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+                "Activity...", "openActivity:", ""
+            )
+            activity_item.setTarget_(self)
+            self.menu.addItem_(activity_item)
+
             workspace_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
-                "Isolated file workspace...", "openWorkspace:", ""
+                "Workspace...", "openWorkspace:", ""
             )
             workspace_item.setTarget_(self)
             self.menu.addItem_(workspace_item)
@@ -960,14 +959,18 @@ def _run_appkit() -> None:
 
         def openProtector_(self, _sender) -> None:
             from native_workspace import open_workspace
-            open_workspace(section="Status")
+            open_workspace(section="Status", status_item=self.status_item)
 
         def runProofs_(self, _sender) -> None:
-            run_free_proofs()
-            self.applySnapshot_(_status_snapshot())
+            from native_workspace import open_workspace
+            open_workspace(section="Safety check", status_item=self.status_item)
+
+        def openActivity_(self, _sender) -> None:
+            from native_workspace import open_workspace
+            open_workspace(section="Activity and evidence", status_item=self.status_item)
 
         def openWorkspace_(self, _sender) -> None:
-            open_offline_workspace()
+            open_offline_workspace(self.status_item)
 
         def openConsole_(self, _sender) -> None:
             open_full_console()
@@ -975,7 +978,7 @@ def _run_appkit() -> None:
         def quitApp_(self, _sender) -> None:
             from native_workspace import is_busy
             if is_busy():
-                open_offline_workspace()
+                open_offline_workspace(self.status_item)
                 return
             if self.timer is not None:
                 self.timer.invalidate()

@@ -39,9 +39,9 @@ python tools/generate_brand_muse.py
 
 | File | Role |
 |------|------|
-| `swarmguard-mark.png` | Square mark (RGBA). Product icon, dashboard hero. |
-| `swarmguard-icon-menu.png` | High-contrast menu-bar / panel header mark. |
-| `swarmguard-icon-menu-template.png` | Black silhouette for AppKit template tinting. |
+| `swarmguard-mark.png` | Transparent lattice shield (RGBA). Shared identity for native panel and console. |
+| `swarmguard-icon-menu.png` | Same transparent lattice shield as the main mark. |
+| `swarmguard-icon-menu-template.png` | 44px transparent black-alpha derivative for 22pt @2x AppKit template tinting. |
 | `swarmguard-icon-menu-dark.png` | Packed light-on-ink preview (docs). |
 | `swarmguard-popout-mock.png` | Muse Image UX target for the native Protector panel. |
 | `swarmguard-wordmark.png` | Optional horizontal lockup (if present). |
@@ -81,3 +81,11 @@ Quit via **Quit SwarmGuard menu**, then:
 ```
 
 If a stale lock blocks relaunch: `rm /tmp/swarmguard-menubar.pid` (only when no menubar process is running).
+
+## Alpha correction
+
+The former template was fully opaque and appeared as a solid square on macOS.
+The reviewed lattice shield is now the single runtime identity; menu and panel
+color marks are identical, and the small template uses that same alpha shape.
+No runtime logo generation or inference. Inspect light/dark small previews before
+changing these frozen assets. Legacy wordmark/mock artwork is reference only.

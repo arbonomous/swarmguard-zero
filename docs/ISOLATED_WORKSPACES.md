@@ -166,3 +166,21 @@ include tests; they do not trigger an attack-alert badge. Status/activity and
 isolated-workspace actions select their native sections directly. No active tool
 connection means no connected-tool protection is confirmed, regardless of policy
 configuration. Menu labels/layout still need an actual Mac screenshot check.
+
+## End-to-end native preview flow
+
+1. Click the shared shield mark. The dropdown contains only basic commands:
+   Open SwarmGuard, Safety check, Activity, Workspace, Quit.
+2. Open SwarmGuard shows native status with the same shield and a primary Run
+   safety check action. Tool-connection and scope explanations live here, not as
+   diagnostic rows flooding the dropdown.
+3. Safety check opens its native section in the popout without silently starting.
+   Run shows a waiting state while restrictions/copy/export/cleanup complete.
+4. The result stays in the popout, with pass/attention, tested scope and next
+   action. Failure says not to bypass restrictions. Activity/details are separate.
+5. Workspace explicitly selects/reviews source copies and exports. Originals are
+   never overwritten. API demos are secondary and require credit-use confirmation.
+
+The panel anchors below the status item when that anchor is available. Pixel
+placement on macOS still requires verification. Asset previews are real rendered
+light/dark small-alpha checks, not a substitute for native screenshot validation.
