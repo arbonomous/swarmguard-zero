@@ -35,13 +35,25 @@ def is_busy() -> bool:
     return bool(_CONTROLLER is not None and _CONTROLLER.busy)
 
 
+def present_panel(panel, app, running_app, activation_options) -> None:
+    """Visibility must not depend on the accessory activation request succeeding."""
+    panel.setHidesOnDeactivate_(False)
+    activated = running_app.activateWithOptions_(activation_options)
+    panel.makeKeyWindow()
+    panel.orderFrontRegardless()
+    print('[SwarmGuard] Presentation visible=' + str(bool(panel.isVisible())) +
+          ' key=' + str(bool(panel.isKeyWindow())) +
+          ' active=' + str(bool(app.isActive())) +
+          ' activation_accepted=' + str(bool(activated)), flush=True)
+
+
 def open_workspace(section: str = "Workspace", status_item=None) -> None:
     global _CONTROLLER
     if _CONTROLLER is None:
         _CONTROLLER = _build()
     _CONTROLLER.sections.selectItemWithTitle_(section)
     _CONTROLLER.sectionChanged_(None)
-    from AppKit import NSApp
+    from AppKit import NSApplication, NSRunningApplication, NSApplicationActivateIgnoringOtherApps
     if status_item is not None:
         try:
             button = status_item.button()
@@ -56,11 +68,8 @@ def open_workspace(section: str = "Workspace", status_item=None) -> None:
             _CONTROLLER.panel.setFrameOrigin_((x, y))
         except (AttributeError, TypeError):
             _CONTROLLER.panel.center()
-    NSApp.activateIgnoringOtherApps_(True)
-    _CONTROLLER.panel.makeKeyAndOrderFront_(None)
-    print('[SwarmGuard] Presentation visible=' + str(bool(_CONTROLLER.panel.isVisible())) +
-          ' key=' + str(bool(_CONTROLLER.panel.isKeyWindow())) +
-          ' active=' + str(bool(NSApp.isActive())), flush=True)
+    present_panel(_CONTROLLER.panel, NSApplication.sharedApplication(),
+                  NSRunningApplication.currentApplication(), NSApplicationActivateIgnoringOtherApps)
 
 
 def _build():

@@ -79,3 +79,16 @@ class DeferredPresentationTests(unittest.TestCase):
             self.assertEqual(delay,0)
             callback(*args)
             opened.assert_called_once_with(section='Safety check',status_item=marker)
+
+class ActivationIndependentPresentationTests(unittest.TestCase):
+    def test_ordering_even_when_activation_refused(self):
+        from unittest.mock import Mock
+        panel,app,running=Mock(),Mock(),Mock()
+        running.activateWithOptions_.return_value=False
+        app.isActive.return_value=False
+        native.present_panel(panel,app,running,2)
+        panel.setHidesOnDeactivate_.assert_called_once_with(False)
+        running.activateWithOptions_.assert_called_once_with(2)
+        panel.makeKeyWindow.assert_called_once()
+        panel.orderFrontRegardless.assert_called_once()
+        panel.makeKeyAndOrderFront_.assert_not_called()
