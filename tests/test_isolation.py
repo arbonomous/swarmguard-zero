@@ -86,3 +86,12 @@ class DockerProcessTests(unittest.TestCase):
             with patch.dict(os.environ, {'PATH':tmp+os.pathsep+os.environ['PATH']}):
                 with self.assertRaises(subprocess.TimeoutExpired):
                     runner.docker('version',timeout=1)
+
+class DockerBinaryTests(unittest.TestCase):
+    def test_raw_stdin_roundtrip(self):
+        import os,tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            exe=Path(tmp)/'docker';exe.write_text('#!/bin/sh\nexec cat\n');exe.chmod(0o700)
+            with patch.dict(os.environ, {'PATH':tmp+os.pathsep+os.environ['PATH']}):
+                result=runner.docker('cp',input_data=b'\x00\xffarchive',raw=True)
+                self.assertEqual(result.stdout,b'\x00\xffarchive')

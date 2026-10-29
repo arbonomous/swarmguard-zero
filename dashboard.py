@@ -499,6 +499,70 @@ def render_isolation() -> None:
         st.caption("These synthetic checks do not test container escape or prove all attacks are blocked.")
 
 
+def render_workspace() -> None:
+    import shlex
+    from isolation_check import VERIFIED_IMAGE
+    from workspace_files import validate_files, make_archive, safe_name
+    st.subheader("Copied offline workspace", anchor=False)
+    st.caption(
+        "Experimental. Upload only source files you choose. Nothing mounts your project folder. "
+        "Commands need to exist in the pinned local Redis image; it has no cloud agent or network. "
+        "This is for trusted commands, not hostile malware."
+    )
+    st.caption("Limits: 512 KiB per UTF-8 source file, 4 MiB total, 200 files. Credential-like names/content are rejected, but detection is not exhaustive.")
+    uploads = st.file_uploader("Choose source files, never keys or private documents", accept_multiple_files=True,
+                               key="workspace_uploads")
+    command_text = st.text_input("In-image command (absolute executable)",
+                                 value="/bin/sh -c 'printf demo-output > result.txt'", key="workspace_command")
+    output_text = st.text_input("Output filenames to review (one per comma)", value="result.txt", key="workspace_exports")
+    prepared = None
+    if uploads:
+        try:
+            names = [item.name for item in uploads]
+            if len(set(names)) != len(names):
+                raise ValueError("Duplicate filenames are not accepted")
+            files = validate_files({item.name: item.getvalue() for item in uploads})
+            command = shlex.split(command_text)
+            if not command or not command[0].startswith("/"):
+                raise ValueError("Command must use an absolute in-image executable")
+            outputs = [safe_name(name.strip()) for name in output_text.split(",") if name.strip()]
+            if not outputs or len(set(outputs)) != len(outputs):
+                raise ValueError("Choose distinct output filenames")
+            st.write("Imports: " + ", ".join(files))
+            st.code(shlex.join(command), language="sh")
+            st.write("Requested exports: " + ", ".join(outputs))
+            st.caption("Source files may contain private text despite these checks. Review your selection. "
+                       "Outputs are downloads for review, never automatic changes to your project.")
+            prepared = files, command, outputs
+        except (ValueError, UnicodeError) as exc:
+            st.warning(str(exc))
+    import hashlib
+    fingerprint = hashlib.sha256()
+    if prepared:
+        for name, data in prepared[0].items():
+            fingerprint.update(name.encode());fingerprint.update(data)
+    fingerprint.update(command_text.encode());fingerprint.update(output_text.encode())
+    approved = st.checkbox("I reviewed these exact files, command and outputs",
+                           key="workspace_review_" + fingerprint.hexdigest())
+    if st.button("Run copied offline workspace", disabled=not (prepared and approved), key="workspace_run"):
+        from offline_workspace import run
+        files, command, outputs = prepared
+        try:
+            with st.spinner("Running the copied files offline, then freezing before export..."):
+                result = run(files, command, outputs, image=VERIFIED_IMAGE)
+            st.session_state["workspace_download"] = make_archive(result["files"])
+            st.session_state["workspace_output"] = result["stdout"][-8000:]
+            st.success("Run finished and scratch container removed. Review downloaded outputs before using them.")
+        except Exception as exc:
+            st.session_state.pop("workspace_download", None)
+            st.warning("Workspace did not finish (" + type(exc).__name__ + "). No project files were overwritten. "
+                       "Check runtime/image availability and command. Do not bypass restrictions.")
+    if "workspace_download" in st.session_state:
+        st.code(st.session_state.get("workspace_output", ""), language="text")
+        st.download_button("Download selected outputs for review", data=st.session_state["workspace_download"],
+                           file_name="swarmguard-reviewed-outputs.tar", mime="application/x-tar")
+
+
 def render_about() -> None:
     with st.expander("How SwarmGuard thinks about protection"):
         st.markdown(
@@ -540,6 +604,8 @@ def main() -> None:
     render_activity(incident, result)
     st.divider()
     render_isolation()
+    st.divider()
+    render_workspace()
     st.divider()
     render_see_it_work(api_ok)
     render_about()

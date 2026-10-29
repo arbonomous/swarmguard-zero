@@ -12,6 +12,7 @@ import os
 import re
 import selectors
 import time
+import tempfile
 import subprocess
 import sys
 import uuid
@@ -20,14 +21,18 @@ CONTEXT = "orbstack"
 LABEL = "com.swarmguard.isolated"
 
 
-def docker(*args: str, timeout: int = 15) -> subprocess.CompletedProcess[str]:
+def docker(*args: str, timeout: int = 15, raw: bool = False, input_data: bytes | None = None) -> subprocess.CompletedProcess:
     env = os.environ.copy()
     # Explicit context must not be redirected to another daemon by inherited env.
     for key in ("DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH"):
         env.pop(key, None)
     argv = ["docker", "--context", CONTEXT, *args]
     # Bound hostile command output as well as runtime. Never buffer without limit.
-    proc = subprocess.Popen(argv, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    source = tempfile.TemporaryFile() if input_data is not None else None
+    if source is not None:
+        source.write(input_data)
+        source.seek(0)
+    proc = subprocess.Popen(argv, env=env, stdin=source, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     streams = selectors.DefaultSelector()
     chunks = {"stdout": bytearray(), "stderr": bytearray()}
     for key in chunks:
@@ -45,16 +50,18 @@ def docker(*args: str, timeout: int = 15) -> subprocess.CompletedProcess[str]:
                     streams.unregister(event.fileobj)
                     continue
                 total += len(data)
-                if total > 1024 * 1024:
-                    raise ValueError("Docker output limit exceeded (1 MiB)")
+                if total > (6 if raw else 1) * 1024 * 1024:
+                    raise ValueError("Docker output limit exceeded")
                 chunks[event.data].extend(data)
         code = proc.wait(timeout=max(0.01, deadline - time.monotonic()))
-        out, err = (chunks[key].decode("utf-8", errors="replace") for key in chunks)
+        out, err = (bytes(chunks[key]) if raw else chunks[key].decode("utf-8", errors="replace") for key in chunks)
         if code:
             raise subprocess.CalledProcessError(code, argv, out, err)
         return subprocess.CompletedProcess(argv, code, out, err)
     finally:
         streams.close()
+        if source is not None:
+            source.close()
         if proc.poll() is None:
             proc.kill()
         proc.wait()

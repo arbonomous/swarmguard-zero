@@ -91,3 +91,28 @@ A broker must have synthetic offline transport tests first, then a separately
 approved local network test before any provider request. Existing API keys are
 not permission to spend. This is a design constraint, not a claim that a broker
 or usable cloud-agent workspace already exists.
+
+## Copied source workspace (experimental)
+
+The advanced console offers an explicit file picker, an absolute in-image command
+and requested output paths. Review those exact values before starting. Changing
+any value resets the review checkbox. Only selected UTF-8 source files cross the
+boundary: 200 files, 512 KiB each, 4 MiB total. Hidden paths, credential-like names,
+likely credential content, binary files and symlinks are rejected. Detection is
+not exhaustive; do not select private material because a scanner appears clear.
+
+Imports use a bounded archive into scratch, not host mounts. The selected command
+runs offline for at most 120 seconds. The container is paused before output
+collection to prevent background-process races. Returned files are size/type/path
+checked without extracting an untrusted archive onto the host. No device, symlink,
+hardlink, traversal or duplicate archive entries are accepted. Selected outputs
+are provided as a download for review, never written over the source project.
+Cleanup targets only the run's generated name. The image must already be local;
+commands/tooling absent from it simply fail. The pinned Redis test image does not
+contain a cloud agent, so this is an explicit offline source-command workspace,
+not a working general AI agent installation. Live copied-transfer integration on
+OrbStack still needs testing; the earlier restriction probes did not test this
+new transfer path.
+
+Docker copy behavior: https://docs.docker.com/reference/cli/docker/container/cp/
+Pause/freezer behavior: https://docs.docker.com/reference/cli/docker/container/pause/
