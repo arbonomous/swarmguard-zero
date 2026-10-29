@@ -169,10 +169,11 @@ def _protector_up() -> bool:
         return False
 
 
-def open_full_console() -> str:
+def open_full_console(*, workspace: bool = False) -> str:
     """Optional advanced Streamlit console in the browser (not the primary Protector)."""
+    url = PROTECTOR_URL + ("/#offline-workspace" if workspace else "")
     if _protector_up():
-        webbrowser.open(PROTECTOR_URL)
+        webbrowser.open(url)
         return "Opened full console (Streamlit) in browser."
     env = os.environ.copy()
     env.setdefault("SWARMGUARD_MUSE_ON_AMBIGUOUS", "0")
@@ -189,12 +190,17 @@ def open_full_console() -> str:
         stderr=subprocess.DEVNULL,
         start_new_session=True,
     )
-    webbrowser.open(PROTECTOR_URL)
+    webbrowser.open(url)
     return "Starting full console (streamlit)…"
 
 
 # Back-compat alias (older call sites / docs)
 open_protector = open_full_console
+
+
+def open_offline_workspace() -> str:
+    """Native menu entry for the copied workspace. No runtime launch on open."""
+    return open_full_console(workspace=True)
 
 
 def run_free_proofs() -> str:
@@ -792,6 +798,7 @@ def _run_rumps() -> None:
                 None,
                 rumps.MenuItem("Open Protector", callback=self._on_open),
                 rumps.MenuItem("Run free proofs", callback=self._on_proofs),
+                rumps.MenuItem("Offline workspace (experimental)", callback=self._on_workspace),
                 rumps.MenuItem(
                     "Open full console (advanced)…", callback=self._on_console
                 ),
@@ -835,6 +842,9 @@ def _run_rumps() -> None:
             msg = run_free_proofs()
             self._apply_snapshot(_status_snapshot())
             rumps.notification("SwarmGuard", "Free proofs", msg[:180])
+
+        def _on_workspace(self, _sender: Any) -> None:
+            open_offline_workspace()
 
         def _on_console(self, _sender: Any) -> None:
             msg = open_full_console()
@@ -935,6 +945,12 @@ def _run_appkit() -> None:
             proof_item.setTarget_(self)
             self.menu.addItem_(proof_item)
 
+            workspace_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+                "Offline workspace (experimental)", "openWorkspace:", ""
+            )
+            workspace_item.setTarget_(self)
+            self.menu.addItem_(workspace_item)
+
             console_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
                 "Open full console (advanced)…", "openConsole:", ""
             )
@@ -991,6 +1007,9 @@ def _run_appkit() -> None:
         def runProofs_(self, _sender) -> None:
             run_free_proofs()
             self.applySnapshot_(_status_snapshot())
+
+        def openWorkspace_(self, _sender) -> None:
+            open_offline_workspace()
 
         def openConsole_(self, _sender) -> None:
             open_full_console()

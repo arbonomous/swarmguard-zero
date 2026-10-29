@@ -60,6 +60,20 @@ def check() -> dict:
     return result
 
 
+def check_workspace() -> dict:
+    """One synthetic import/execute/freeze/export roundtrip, no private input."""
+    from offline_workspace import run
+    try:
+        result = run({'input.txt': b'swarmguard-synthetic-only\n'},
+                     ['/bin/sh', '-c', 'cat input.txt > result.txt'], ['result.txt'],
+                     image=VERIFIED_IMAGE, seconds=15)
+        return {'passed': result['files'] == {'result.txt': b'swarmguard-synthetic-only\n'},
+                'detail': 'Synthetic import, command, frozen export and cleanup roundtrip.'}
+    except Exception as exc:
+        return {'passed': False, 'detail': str(exc) if isinstance(exc, RuntimeError) else
+                'Copied roundtrip unavailable (' + type(exc).__name__ + '). No private source was used.'}
+
+
 if __name__ == '__main__':
     import json
     result = check()

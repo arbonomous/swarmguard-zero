@@ -478,7 +478,7 @@ def render_see_it_work(api_ok: bool) -> None:
 
 
 def render_isolation() -> None:
-    from isolation_check import check
+    from isolation_check import check, check_workspace
     st.subheader("Offline isolation", anchor=False)
     st.caption(
         "Runs a disposable test in OrbStack using the already-local, source-verified Redis image. "
@@ -487,6 +487,17 @@ def render_isolation() -> None:
     if st.button("Check offline isolation", key="check_isolation"):
         with st.spinner("Checking the disposable container and cleanup..."):
             st.session_state["isolation_result"] = check()
+    if st.button("Run complete offline check", key="complete_offline_check",
+                 help="Synthetic isolation plus copied import/export. No private files or network requests."):
+        with st.spinner("Checking restrictions and synthetic source roundtrip..."):
+            result = check()
+            if result["passed"]:
+                copied = check_workspace()
+                result["checks"]["copied-import-export-cleanup"] = copied["passed"]
+                result["passed"] = copied["passed"]
+                if not copied["passed"]:
+                    result["detail"] = copied["detail"]
+            st.session_state["isolation_result"] = result
     result = st.session_state.get("isolation_result")
     if result:
         if result["passed"]:
@@ -503,18 +514,18 @@ def render_workspace() -> None:
     import shlex
     from isolation_check import VERIFIED_IMAGE
     from workspace_files import validate_files, make_archive, safe_name
-    st.subheader("Copied offline workspace", anchor=False)
+    st.subheader("Copied offline workspace", anchor="offline-workspace")
     st.caption(
         "Experimental. Upload only source files you choose. Nothing mounts your project folder. "
         "Commands need to exist in the pinned local Redis image; it has no cloud agent or network. "
         "This is for trusted commands, not hostile malware."
     )
-    st.caption("Limits: 512 KiB per UTF-8 source file, 4 MiB total, 200 files. Credential-like names/content are rejected, but detection is not exhaustive.")
+    st.caption("Limits: 1 MiB per UTF-8 source file, 4 MiB total, 200 files. Credential-like names/content are rejected, but detection is not exhaustive.")
     uploads = st.file_uploader("Choose source files, never keys or private documents", accept_multiple_files=True,
                                key="workspace_uploads")
     command_text = st.text_input("In-image command (absolute executable)",
                                  value="/bin/sh -c 'printf demo-output > result.txt'", key="workspace_command")
-    output_text = st.text_input("Output filenames to review (one per comma)", value="result.txt", key="workspace_exports")
+    output_text = st.text_input("Output filenames to review (up to 20, comma separated)", value="result.txt", key="workspace_exports")
     prepared = None
     if uploads:
         try:
@@ -526,8 +537,8 @@ def render_workspace() -> None:
             if not command or not command[0].startswith("/"):
                 raise ValueError("Command must use an absolute in-image executable")
             outputs = [safe_name(name.strip()) for name in output_text.split(",") if name.strip()]
-            if not outputs or len(set(outputs)) != len(outputs):
-                raise ValueError("Choose distinct output filenames")
+            if not outputs or len(outputs) > 20 or len(set(outputs)) != len(outputs):
+                raise ValueError("Choose 1 to 20 distinct output filenames")
             st.write("Imports: " + ", ".join(files))
             st.code(shlex.join(command), language="sh")
             st.write("Requested exports: " + ", ".join(outputs))
@@ -555,6 +566,8 @@ def render_workspace() -> None:
             st.success("Run finished and scratch container removed. Review downloaded outputs before using them.")
         except Exception as exc:
             st.session_state.pop("workspace_download", None)
+            if isinstance(exc, RuntimeError) and str(exc).startswith("Cleanup failed"):
+                st.error(str(exc))
             st.warning("Workspace did not finish (" + type(exc).__name__ + "). No project files were overwritten. "
                        "Check runtime/image availability and command. Do not bypass restrictions.")
     if "workspace_download" in st.session_state:

@@ -28,3 +28,25 @@ class WorkspaceTests(unittest.TestCase):
         with patch.object(workspace.runner,'docker') as docker:
             with self.assertRaises(ValueError):workspace.run({'.env':b'a'},['/bin/sh'],['x.py'],image='local')
             docker.assert_not_called()
+
+class FailureTests(unittest.TestCase):
+    def test_timeout_still_removes_own_container(self):
+        import subprocess
+        calls=[]
+        def docker(*args,**kwargs):
+            calls.append(args)
+            if args[0]=='inspect':
+                data=configuration();data['Name']='/'+args[1]
+                return SimpleNamespace(stdout=json.dumps([data]))
+            if args[:2]==('exec','--workdir'):raise subprocess.TimeoutExpired('docker',1)
+            return SimpleNamespace(stdout='',stderr='')
+        with patch.object(workspace.runner,'local_image',return_value=IMAGE),patch.object(workspace.runner,'docker',side_effect=docker):
+            with self.assertRaises(subprocess.TimeoutExpired):workspace.run({'x.py':b'a'},['/bin/sh'],['x.py'],image='local')
+        self.assertEqual(calls[-1][:2],('rm','--force'))
+    def test_cleanup_failure_names_container(self):
+        def docker(*args,**kwargs):
+            if args[0]=='rm':raise OSError()
+            raise ValueError('create failed')
+        with patch.object(workspace.runner,'local_image',return_value=IMAGE),patch.object(workspace.runner,'docker',side_effect=docker):
+            with self.assertRaisesRegex(RuntimeError,'Cleanup failed for scratch container swarmguard-'):
+                workspace.run({'x.py':b'a'},['/bin/sh'],['x.py'],image='local')

@@ -21,3 +21,11 @@ class CheckTests(unittest.TestCase):
     def test_unavailable_does_not_install(self):
         with patch.object(check.runner,'run',side_effect=FileNotFoundError):
             self.assertFalse(check.check()['passed'])
+
+class RoundtripTests(unittest.TestCase):
+    def test_roundtrip_marker(self):
+        with patch('offline_workspace.run',return_value={'files':{'result.txt':b'swarmguard-synthetic-only\n'}}):
+            self.assertTrue(check.check_workspace()['passed'])
+    def test_wrong_output_fails(self):
+        with patch('offline_workspace.run',return_value={'files':{'result.txt':b'wrong'}}):
+            self.assertFalse(check.check_workspace()['passed'])

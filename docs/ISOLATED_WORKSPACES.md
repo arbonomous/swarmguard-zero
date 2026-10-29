@@ -97,7 +97,7 @@ or usable cloud-agent workspace already exists.
 The advanced console offers an explicit file picker, an absolute in-image command
 and requested output paths. Review those exact values before starting. Changing
 any value resets the review checkbox. Only selected UTF-8 source files cross the
-boundary: 200 files, 512 KiB each, 4 MiB total. Hidden paths, credential-like names,
+boundary: 200 files, 1 MiB each, 4 MiB total. Hidden paths, credential-like names,
 likely credential content, binary files and symlinks are rejected. Detection is
 not exhaustive; do not select private material because a scanner appears clear.
 
@@ -116,3 +116,17 @@ new transfer path.
 
 Docker copy behavior: https://docs.docker.com/reference/cli/docker/container/cp/
 Pause/freezer behavior: https://docs.docker.com/reference/cli/docker/container/pause/
+
+
+The native menu now has **Offline workspace (experimental)**, opening the
+workspace section of the local advanced console. Opening it runs nothing.
+**Run complete offline check** performs the synthetic restrictions check and
+copied input/command/paused export/cleanup roundtrip in one click. No private
+files are used. Native-menu rendering and this combined workflow still require
+Mac verification after updating; unit tests are not that verification.
+
+Workspace bounds: 20 requested output files, 4 MiB combined imported/exported
+text, 1 MiB per source file, 1 MiB command output, 6 MiB archive stream. Each
+Docker operation and the full workflow have deadlines; cleanup has its own
+15-second attempt even when the workflow deadline expires. A cleanup failure
+names the exact generated container for attention, never prunes other workloads.

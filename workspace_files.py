@@ -12,7 +12,7 @@ import tarfile
 
 MAX_FILES = 200
 MAX_TOTAL = 4 * 1024 * 1024
-MAX_FILE = 512 * 1024
+MAX_FILE = 1024 * 1024
 SOURCE_SUFFIXES = {'.py', '.js', '.ts', '.tsx', '.jsx', '.html', '.css', '.md', '.txt', '.json', '.toml', '.yaml', '.yml', '.sh', '.sql', '.rs', '.go'}
 BLOCKED_PARTS = {'.git', '.ssh', '.aws', '.config', 'node_modules', '.venv', '__pycache__'}
 SECRET_NAME = re.compile(r'(^|[._-])(env|secret|secrets|credential|credentials|token|tokens|password|passwords|private|id_rsa|id_ed25519)([._-]|$)', re.I)
@@ -42,7 +42,7 @@ def validate_files(files: dict[str, bytes]) -> dict[str, bytes]:
     for name, data in files.items():
         name = safe_name(name)
         if not isinstance(data, bytes) or len(data) > MAX_FILE:
-            raise ValueError('Each source file must be at most 512 KiB')
+            raise ValueError('Each source file must be at most 1 MiB')
         total += len(data)
         if total > MAX_TOTAL:
             raise ValueError('Selected source must be at most 4 MiB total')
