@@ -23,6 +23,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+MCP_MESSAGE_LIMIT = 4 * 1024 * 1024
+
 ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -70,37 +72,18 @@ def _utc_now() -> str:
 
 
 def _encode_message(obj: dict[str, Any]) -> bytes:
-    body = json.dumps(obj, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-    header = f"Content-Length: {len(body)}\r\n\r\n".encode("ascii")
-    return header + body
+    return (json.dumps(obj, separators=(",", ":"), ensure_ascii=False) + "\n").encode("utf-8")
 
 
 async def _read_message(reader: asyncio.StreamReader) -> dict[str, Any] | None:
-    """Read one MCP/LSP-framed JSON-RPC message. Returns None on EOF."""
-    content_length: int | None = None
-    while True:
-        line = await reader.readline()
-        if not line:
-            return None
-        if line in (b"\r\n", b"\n"):
-            break
-        try:
-            text = line.decode("ascii", errors="replace").strip()
-        except Exception:
-            continue
-        if not text:
-            break
-        if ":" in text:
-            key, value = text.split(":", 1)
-            if key.strip().lower() == "content-length":
-                try:
-                    content_length = int(value.strip())
-                except ValueError:
-                    content_length = None
-    if content_length is None or content_length < 0:
+    """Read standard newline-delimited MCP stdio JSON-RPC, not LSP frames."""
+    line = await reader.readline()
+    if not line:
         return None
-    body = await reader.readexactly(content_length)
-    return json.loads(body.decode("utf-8"))
+    message = json.loads(line.decode("utf-8"))
+    if not isinstance(message, dict):
+        raise ValueError("MCP stdio message must be a JSON object")
+    return message
 
 
 def _tool_error_result(msg_id: Any, text: str) -> dict[str, Any]:
@@ -431,6 +414,11 @@ class McpProxy:
             sys.stderr.buffer.write(line)
             sys.stderr.buffer.flush()
 
+    async def _keep_heartbeat(self) -> None:
+        while True:
+            await asyncio.sleep(30)
+            self._heartbeat()
+
     async def run(self) -> int:
         self._heartbeat("starting")
         self._proc = await asyncio.create_subprocess_exec(
@@ -438,25 +426,31 @@ class McpProxy:
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            limit=MCP_MESSAGE_LIMIT,
         )
         assert self._proc.stdin and self._proc.stdout and self._proc.stderr
 
         # Wrap client stdin as a StreamReader
         loop = asyncio.get_running_loop()
-        client_reader = asyncio.StreamReader()
+        client_reader = asyncio.StreamReader(limit=MCP_MESSAGE_LIMIT)
         protocol = asyncio.StreamReaderProtocol(client_reader)
         await loop.connect_read_pipe(lambda: protocol, sys.stdin.buffer)
 
+        heartbeat_task = asyncio.create_task(self._keep_heartbeat(), name="heartbeat")
+        stderr_task = asyncio.create_task(self._pump_stderr(self._proc.stderr), name="err")
         tasks = [
             asyncio.create_task(self._client_to_upstream(client_reader), name="c2u"),
             asyncio.create_task(self._upstream_to_client(self._proc.stdout), name="u2c"),
-            asyncio.create_task(self._pump_stderr(self._proc.stderr), name="err"),
         ]
         self._heartbeat("wrapping tools")
 
         done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-        for t in pending:
+        # stderr EOF is not the end of the protocol session. Retrieve pump
+        # exceptions so malformed input cannot silently appear successful.
+        failed = any(t.exception() is not None for t in done if not t.cancelled())
+        for t in pending | {heartbeat_task, stderr_task}:
             t.cancel()
+        await asyncio.gather(*pending, heartbeat_task, stderr_task, return_exceptions=True)
         # Prefer cooperative shutdown — never SIGKILL
         if self._proc.returncode is None:
             try:
@@ -482,7 +476,7 @@ class McpProxy:
                 "stopped_at": _utc_now(),
             }
         )
-        return self._proc.returncode or 0
+        return 1 if failed else (self._proc.returncode or 0)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import selectors
 import subprocess
 import sys
 import time
@@ -28,26 +29,14 @@ os.environ["SWARMGUARD_MUSE_ON_AMBIGUOUS"] = "0"
 
 
 def _encode(obj: dict[str, Any]) -> bytes:
-    body = json.dumps(obj, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-    return f"Content-Length: {len(body)}\r\n\r\n".encode("ascii") + body
+    return (json.dumps(obj, separators=(",", ":"), ensure_ascii=False) + "\n").encode("utf-8")
 
 
 def _read_one(buf: bytearray) -> dict[str, Any] | None:
-    raw = bytes(buf)
-    if b"\r\n\r\n" not in raw:
+    if b"\n" not in buf:
         return None
-    header, rest = raw.split(b"\r\n\r\n", 1)
-    length = None
-    for line in header.split(b"\r\n"):
-        if line.lower().startswith(b"content-length:"):
-            try:
-                length = int(line.split(b":", 1)[1].strip())
-            except ValueError:
-                return None
-    if length is None or len(rest) < length:
-        return None
-    body = rest[:length]
-    del buf[: len(header) + 4 + length]
+    body, _, rest = buf.partition(b"\n")
+    buf[:] = rest
     return json.loads(body.decode("utf-8"))
 
 
@@ -73,7 +62,11 @@ def _rpc(
         if msg is not None and msg.get("id") == msg_id:
             return msg
         assert proc.stdout is not None
-        chunk = proc.stdout.read1(4096) if hasattr(proc.stdout, "read1") else proc.stdout.read(4096)
+        with selectors.DefaultSelector() as selector:
+            selector.register(proc.stdout, selectors.EVENT_READ)
+            if not selector.select(max(0, deadline - time.time())):
+                raise TimeoutError(f"no response for id={msg_id} method={method}")
+        chunk = os.read(proc.stdout.fileno(), 4096)
         if chunk:
             buf.extend(chunk)
             continue

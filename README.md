@@ -4,14 +4,14 @@
   <img src="assets/brand/swarmguard-mark.png" alt="SwarmGuard mark" width="96" />
 </p>
 
-Protection for your computer against sneaky AI helpers — Meta Global AI Developer Hackathon (Indie Track). Quiet antivirus for AI agents.
+A scoped policy gate for AI-agent tools - Meta Global AI Developer Hackathon (Indie Track). Not OS-wide antivirus.
 
 **Brand:** [`assets/brand/BRAND.md`](./assets/brand/BRAND.md) · **North star:** [`WIN_PLAN.md`](./WIN_PLAN.md) · Research: [`swarmguard_zero_meta_hackathon_blueprint.md`](./swarmguard_zero_meta_hackathon_blueprint.md) · Meta API: [`meta_model_api_muse_code_expert_guide.md`](./meta_model_api_muse_code_expert_guide.md)
 
 ## Claim
 
 **Fail-closed on the wire + Meta multimodal forensics.**  
-SwarmGuard is autonomous antivirus for agents: an IDE PreToolUse hook + MCP stdio policy proxy deny dangerous tool calls *before* they run, and a Meta Muse swarm (Spark + Wonder + SAM) sees concealed injections when you opt in.
+SwarmGuard is a scoped agent-tool gate: an IDE PreToolUse hook + MCP stdio policy proxy deny dangerous tool calls *before* they run, and a Meta Muse swarm (Spark + Wonder + SAM) sees concealed injections when you opt in.
 
 ```
 Cursor / Claude Code  →  IDE hook (hooks/swarmguard_pretool.py)
@@ -29,9 +29,12 @@ Agent MCP tools       →  MCP proxy (mcp_proxy.py)
 4. **Meta AI swarm** — Muse Spark + Wonder + SAM inspect poisoned docs / helper behavior
 5. **Protector UI** — macOS menu-bar native panel (primary) + optional Streamlit deep console; status + MCP gate heartbeat + activity (IDE hook / MCP policy deny vs Muse quarantine)
 
+The status label confirms policy configuration only, not that IDE hooks have run or that the whole computer is protected. The MCP heartbeat confirms a running wrapper, not coverage of other tools. IDE command matching is heuristic and can be bypassed by scripts or obfuscation. Strict MCP defaults currently deny unrecognized calls, including normal reads; configure/review policy before using it for everyday work.
+
 Prove the gates (free, no Meta tokens):
 
 ```bash
+python -m unittest discover -s tests -v  # independent stdio and status regressions
 python safe_range/run_enforcement_demo.py   # catalog + rogue
 python safe_range/run_mcp_gate_demo.py      # proxy denies .env/exfil; upstream never sees them
 python safe_range/run_ide_hook_demo.py      # IDE hook denies Read .env + curl evil
@@ -77,7 +80,9 @@ source .venv/bin/activate
 streamlit run dashboard.py
 ```
 
-Browser console: **Protecting this computer**, MCP gate idle/wrapping, activity feed, optional Attack 01 (Meta API credits). The MCP proxy and Cursor/Claude hooks are unchanged — menu bar does not replace them.
+Browser console: **Scoped agent-tool policy**, MCP gate idle/wrapping, activity feed, optional Attack 01 (Meta API credits). The MCP proxy and Cursor/Claude hooks are unchanged — menu bar does not replace them.
+
+The stdio wrapper uses newline-delimited JSON-RPC per the [MCP transport specification](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports). It does not use Content-Length framing.
 
 ### Wrap a real (or fake) MCP server
 
@@ -97,7 +102,7 @@ Env flags:
 
 ## 2-minute demo story
 
-1. Menu bar **Open Protector**: **Protecting · Enforce ON**; start MCP proxy → panel shows **MCP gate: wrapping**.
+1. Menu bar **Open Protector**: **Policy ON · scoped hooks only**; start MCP proxy → panel shows **MCP gate: wrapping**.
 2. Agent (or menu **Run free proofs** / `run_ide_hook_demo.py` / `run_mcp_gate_demo.py`) tries `read .env` / evil curl → **hard deny** (no Muse needed); denials appear in the panel.
 3. Optional advanced: Streamlit **See it work** → Attack 01 poisoned README → Spark + SAM + Wonder report.
 4. Tagline: antivirus for agents — on the wire, with Meta eyes.

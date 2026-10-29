@@ -19,8 +19,7 @@ DEFAULT_LOG = Path(__file__).resolve().parent / "fake_upstream_calls.jsonl"
 
 
 def _encode(obj: dict[str, Any]) -> bytes:
-    body = json.dumps(obj, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-    return f"Content-Length: {len(body)}\r\n\r\n".encode("ascii") + body
+    return (json.dumps(obj, separators=(",", ":"), ensure_ascii=False) + "\n").encode("utf-8")
 
 
 def _write(obj: dict[str, Any]) -> None:
@@ -29,29 +28,13 @@ def _write(obj: dict[str, Any]) -> None:
 
 
 def _read() -> dict[str, Any] | None:
-    content_length: int | None = None
-    while True:
-        line = sys.stdin.buffer.readline()
-        if not line:
-            return None
-        if line in (b"\r\n", b"\n"):
-            break
-        text = line.decode("ascii", errors="replace").strip()
-        if not text:
-            break
-        if ":" in text:
-            key, value = text.split(":", 1)
-            if key.strip().lower() == "content-length":
-                try:
-                    content_length = int(value.strip())
-                except ValueError:
-                    content_length = None
-    if content_length is None:
+    line = sys.stdin.buffer.readline()
+    if not line:
         return None
-    body = sys.stdin.buffer.read(content_length)
-    if len(body) < content_length:
-        return None
-    return json.loads(body.decode("utf-8"))
+    message = json.loads(line.decode("utf-8"))
+    if not isinstance(message, dict):
+        raise ValueError("MCP stdio message must be a JSON object")
+    return message
 
 
 def _log_call(log_path: Path, name: str, arguments: dict[str, Any]) -> None:

@@ -222,10 +222,10 @@ def render_hero(api_ok: bool, gate_on: bool, incident_count: int, mcp_status: di
 
     if gate_on and api_ok:
         st.success(
-            "Secret-file theft and public data-sending attempts are blocked by policy. "
+            "Configured hooks and wrapped MCP calls apply the tool policy. "
             "Meta AI is available when something needs a deeper look.",
             icon=":material/verified_user:",
-            title="Protecting this computer",
+            title="Scoped agent-tool policy",
         )
     elif gate_on and not api_ok:
         st.warning(

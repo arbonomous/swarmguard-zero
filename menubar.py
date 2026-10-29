@@ -127,7 +127,7 @@ def _gate_short(mcp: dict[str, Any]) -> str:
 
 def _protecting_line(enforce: bool) -> str:
     if enforce:
-        return "Status: Protecting · Enforce ON"
+        return "Status: Policy ON · scoped hooks only"
     return "Status: Enforce OFF"
 
 
