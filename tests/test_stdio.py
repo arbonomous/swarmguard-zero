@@ -65,6 +65,20 @@ class StdioTests(unittest.TestCase):
         self.assertIn("scoped", _protecting_line(True))
         self.assertIn("OFF", _protecting_line(False))
 
+    def test_proof_leaves_gate_stopped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "safe_range").mkdir()
+            for name in ("mcp_proxy.py", "policy.py", "threat_bus.py", "threat_model.py",
+                         "safe_range/run_mcp_gate_demo.py", "safe_range/fake_mcp_upstream.py"):
+                shutil.copyfile(ROOT / name, root / name)
+            result = subprocess.run([sys.executable, str(root / "safe_range/run_mcp_gate_demo.py")],
+                                    capture_output=True, text=True, timeout=15)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            status = json.loads((root / "mcp_gate_status.json").read_text())
+            self.assertFalse(status["active"])
+            self.assertEqual(status["note"], "proxy stopped")
+
     def test_standard_client_independent_upstream(self):
         # A separate, minimal server closes stderr while keeping the session up.
         # Large replies exercise frames beyond asyncio's default 64 KiB limit.

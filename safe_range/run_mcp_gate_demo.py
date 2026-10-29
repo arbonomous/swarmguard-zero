@@ -256,25 +256,33 @@ def main() -> int:
 
     except Exception as exc:  # noqa: BLE001
         failures.append(f"harness exception: {type(exc).__name__}: {exc}")
-        err = b""
-        if proc.stderr:
-            try:
-                err = proc.stderr.read() or b""
-            except Exception:
-                pass
-        if err:
-            print(err.decode("utf-8", errors="replace")[-2000:], file=sys.stderr)
     finally:
+        # EOF lets the proxy shut down upstream and mark its heartbeat stopped.
+        # Terminating immediately leaves a false "wrapping" status in the UI.
         try:
             if proc.stdin:
                 proc.stdin.close()
-        except Exception:
+        except OSError:
             pass
         try:
+            proc.wait(timeout=6)
+        except subprocess.TimeoutExpired:
             proc.terminate()
-            proc.wait(timeout=3)
-        except Exception:
-            proc.kill()
+            try:
+                proc.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=2)
+        # Read diagnostics only after the process exits: a live stderr.read()
+        # can hang forever on the exact error path the timeout should bound.
+        if failures and proc.stderr:
+            err = proc.stderr.read() or b""
+            if err:
+                print(err.decode("utf-8", errors="replace")[-2000:], file=sys.stderr)
+        if proc.stdout:
+            proc.stdout.close()
+        if proc.stderr:
+            proc.stderr.close()
 
     if failures:
         print("MCP gate proof FAILED", file=sys.stderr)
