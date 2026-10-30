@@ -68,6 +68,6 @@ class ManagedBridgeLifecycleTests(unittest.TestCase):
         self.assertTrue(result['denied']);self.assertTrue(result['stopped']);self.assertTrue(result['removed'])
         self.assertEqual(result['artifacts'],{'summary.txt':b'Useful model-selected output'})
         self.assertEqual(client.chat.completions.create.call_count,2)
-        self.assertEqual([e['kind'] for e in result['events']],['started','model_step','allowed','model_step','denied','stopping','stopped','removed'])
+        self.assertEqual([e['kind'] for e in result['events']],['boundary_verified','started','model_step','allowed','model_step','denied','stopping','stopped','removed'])
         self.assertTrue(any(c[0]=='stop' for c in calls))
         self.assertTrue(any(c[:2]==('rm','--force') for c in calls))

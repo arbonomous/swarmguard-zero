@@ -64,7 +64,7 @@ class SupervisorLimitTests(unittest.TestCase):
             with patch.dict(os.environ,{'PATH':tmp+os.pathsep+os.environ['PATH']}),patch('managed_guard.runner.local_image',return_value=IMAGE),patch('managed_guard.runner.docker',side_effect=docker):
                 result=Guard('local').run({'input.txt':b'synthetic'},['/bin/sh'],1)
         self.assertIn('TimeoutError',result['failure']);self.assertTrue(result['stopped']);self.assertTrue(result['removed'])
-        self.assertEqual([e['kind'] for e in result['events']],['started','stopping','stopped','removed'])
+        self.assertEqual([e['kind'] for e in result['events']],['boundary_verified','started','stopping','stopped','removed'])
 
 class ProofResultTests(unittest.TestCase):
     def test_missing_cleanup_cannot_pass(self):

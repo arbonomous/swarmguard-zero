@@ -47,6 +47,15 @@ class ProviderBridge:
         obj.client=client;obj.mock_only=False;obj.failed=False;obj.usage=[];obj.diagnostics=[]
         return obj
 
+    @classmethod
+    def for_owned_worker_validation(cls,coordinator,claim,manifest,*,client):
+        from validate_owned_worker import manifest as expected_manifest
+        if manifest != expected_manifest():raise PermissionError('Not the fixed owned worker validation plan')
+        obj=object.__new__(cls)
+        obj.coordinator=coordinator;obj.claim=claim;obj.manifest=manifest
+        obj.client=client;obj.mock_only=False;obj.failed=False;obj.usage=[];obj.diagnostics=[]
+        return obj
+
     def request(self,role,messages,*,tools=None):
         if self.failed:raise PermissionError('Provider run already stopped; no retries')
         try:

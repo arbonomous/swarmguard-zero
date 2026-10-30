@@ -85,6 +85,7 @@ class Guard:
             args.insert(1,'--interactive')
             created=True;runner.docker(*args)
             runner.verify_container(json.loads(runner.docker('inspect',name).stdout)[0],name,image_id)
+            self.record('boundary_verified',image=image_id)
             env=os.environ.copy()
             for key in ('DOCKER_HOST','DOCKER_CONTEXT','DOCKER_TLS_VERIFY','DOCKER_CERT_PATH'):
                 env.pop(key,None)
@@ -116,6 +117,10 @@ class Guard:
                             line,buffer=buffer.split(b'\n',1)
                             try:
                                 request=json.loads(line)
+                                if defense_council is not None:
+                                    state=json.loads(runner.docker('inspect',name).stdout)[0]['State']
+                                    if state.get('Running') is not True:raise PermissionError('Worker running state unverified')
+                                    self.record('proposal_received',running=True)
                                 response=(model_session.request(request, broker) if model_session is not None else broker.request(request))
                             except (PermissionError,ValueError,TypeError,KeyError,UnicodeError) as exc:
                                 denied=True
