@@ -101,6 +101,9 @@ def _build():
             self.top_views = []
             self.mode = 'Status'
             self.last_analysis = None
+            from task_review import ReviewFlow
+            self.review_flow = ReviewFlow()
+            self.review_receipt = None
             self.visual_panel = None
             content = self.panel.contentView()
             def label(text, y, height=36):
@@ -169,6 +172,8 @@ def _build():
             self.footer = label('Outside agents on your Mac are not covered.', 12, 24)
             self.footer.setFrame_(NSMakeRect(18, 12, 380, 24))
             self.copy_button = button('Copy results', 'copyClicked:', 418, 10, 154)
+            self.dry_button = button('Check start - no spend', 'dryStartClicked:', 18, 300, 554)
+            self.dry_button.setEnabled_(False)
             self.base_frames = [(view, view.frame()) for view in content.subviews()]
             self.showing_check_details = False
             self.panel.setDelegate_(self)
@@ -180,13 +185,15 @@ def _build():
                 return
             self.mode = str(self.sections.titleOfSelectedItem())
             compact = self.mode in ('Status', 'Safety check', 'AI task')
-            self.panel.setContentSize_((590, 440 if compact else 660))
+            self.panel.setContentSize_((590, 480 if self.mode == 'AI task' else (440 if compact else 660)))
             for view, frame in self.base_frames:
-                if view not in (self.scroll, self.footer, self.copy_button):
-                    view.setFrameOrigin_((frame.origin.x, frame.origin.y - (220 if compact else 0)))
+                if view not in (self.scroll, self.footer, self.copy_button, self.dry_button):
+                    view.setFrameOrigin_((frame.origin.x, frame.origin.y - (180 if self.mode == 'AI task' else (220 if compact else 0))))
             self.details_button.setTitle_('Show details')
-            self.home_button.setTitle_('Review AI task...' if self.mode == 'AI task' else 'Test managed guard')
+            self.home_button.setTitle_('Review only...' if self.mode == 'AI task' else 'Test managed guard')
             self.showing_check_details = False
+            self.dry_button.setHidden_(self.mode != 'AI task')
+            self.dry_button.setEnabled_(self.review_flow.pending is not None)
             workspace = self.mode == 'Workspace'
             for view in self.workspace_views:
                 view.setHidden_(not workspace)
@@ -195,9 +202,9 @@ def _build():
             details = self.mode not in ('Status', 'Safety check', 'AI task', 'Workspace')
             for view in self.top_views:
                 view.setHidden_(not details)
-            self.scroll.setFrame_(NSMakeRect(18, 48, 554, 120 if workspace else (350 if details else 250)))
+            self.scroll.setFrame_(NSMakeRect(18, 48, 554, 120 if workspace else (240 if self.mode == 'AI task' else (350 if details else 250))))
             if self.mode == 'AI task':
-                self.results.setString_(check_summary(getattr(self, 'last_model', 'Ready for a reviewed AI task.\n\nBuilt-in made-up sales data contains a fake malicious instruction. A real Meta model calculates totals using only allowed tools.\n\nReview every run before spending credits. Opening this view makes no model request.\n\nThe model/key stay on your Mac; only an offline relay runs in OrbStack. Other agents are not covered.')));return
+                self.results.setString_(check_summary(getattr(self, 'last_model', 'PAID EXECUTION PAUSED\n\nReview only shows the built-in synthetic source and task. It cannot start a model or worker.\n\nAfter closing review, a separate Check start - no spend button checks a one-use source/task binding. That check also cannot spend.\n\nThe earlier approval-screen cause is unresolved. No paid re-enable from this check.')));return
             if self.mode == 'Safety check':
                 self.results.setString_(check_summary(getattr(self, 'last_check', 'Not checked yet.\n\nTest a scripted workload: allow a safe task, block a forbidden request, then stop and remove its container.\n\nNo private files, network or AI credits. Not an intelligent AI agent.')));return
             if workspace:
@@ -345,47 +352,54 @@ def _build():
         def modelClicked_(self, _sender):
             if self.busy:
                 return
-            from native_model_task import invoke, summarize, REVIEW, PAID_EXECUTION_ENABLED
-            if not PAID_EXECUTION_ENABLED:
-                self.showError_('Paid AI tasks are paused while the approval path is checked. No model request made. Previous evidence remains under Show details.');return
-            root = Path(__file__).resolve().parent
-            try:
-                readiness = invoke(root)
-                if readiness.get('ready') is not True:
-                    self.showError_(summarize(readiness));return
-            except Exception:
-                self.showError_('Preflight unavailable. No model request made. Check the existing project .venv.');return
+            # REVIEW ONLY: deliberately no preflight, subprocess or model imports.
+            from native_model_task import SOURCE, TASK
+            self.review_flow.begin_review()
+            self.review_receipt = None
+            self.dry_button.setEnabled_(False)
             review = NSAlert.alloc().init()
-            review.setMessageText_('Approve ONE live AI task and its billing risk?')
-            review.setInformativeText_('Real Meta requests can charge your card after promo credits. No hard spending cap. Read the scope and synthetic source below. Cancel makes no request.')
+            review.setMessageText_('Review only - paid execution is paused')
+            review.setInformativeText_('Closing this screen cannot approve spending or start a task. The next control is a separate nonpaying check.')
             review_scroll = NSScrollView.alloc().initWithFrame_(NSMakeRect(0, 0, 490, 240))
             review_scroll.setHasVerticalScroller_(True)
             review_text = NSTextView.alloc().initWithFrame_(NSMakeRect(0, 0, 470, 240))
             review_text.setEditable_(False);review_text.setSelectable_(True)
-            review_text.setString_(REVIEW)
+            review_text.setString_('TASK:\n' + TASK + '\n\nSYNTHETIC SOURCE sales.txt:\n' + SOURCE.decode() + '\n\nNo real files, keys or account data. A review receipt is not paid authority.')
             review_text.setVerticallyResizable_(True)
             review_text.setHorizontallyResizable_(False)
             review_text.textContainer().setWidthTracksTextView_(True)
             review_scroll.setDocumentView_(review_text)
             review.setAccessoryView_(review_scroll)
-            # Safe default, including Return/Escape: cancel. Approval is the second button.
-            review.addButtonWithTitle_('Cancel')
-            review.addButtonWithTitle_('Approve one paid run')
-            if review.runModal() != NSAlertFirstButtonReturn + 1:
+            review.addButtonWithTitle_('Close review - no task')
+            # No modal return code can route to a paid operation.
+            review.runModal()
+            self.review_receipt = self.review_flow.reviewed({'sales.txt': SOURCE}, TASK)
+            self.dry_button.setEnabled_(True)
+            self.last_model = ('Review closed. Nothing ran. No credits used.\n'
+                               'Separate Check start - no spend is now available once.\n'
+                               'Paid execution remains paused.\n\nEvidence:\n' +
+                               json.dumps(self.review_flow.audit, indent=2))
+            self.results.setString_(check_summary(self.last_model))
+            self.headline.setStringValue_('Reviewed only. No model or worker started.')
+
+        def dryStartClicked_(self, _sender):
+            if self.busy:
                 return
-            def operation():
-                def progress(event):
-                    labels = {'started': 'Worker started in OrbStack.',
-                              'model_step': 'Model step completed; applying allowed tools.',
-                              'allowed': 'Allowed tool completed.',
-                              'denied': 'Request denied. Stopping this worker.',
-                              'stopped': 'Worker stopped. Checking removal.',
-                              'removed': 'Worker removed.' if event.get('verified') else 'Removal not verified.'}
-                    text = labels.get(event.get('kind'), 'Checking task state.')
-                    if event.get('name'):text += '\n' + event['name']
-                    self.performSelectorOnMainThread_withObject_waitUntilDone_('modelProgress:', text, False)
-                return summarize(invoke(root, approved=True, on_event=progress)), None
-            self.startWorker_(operation, kind='model')
+            from native_model_task import SOURCE, TASK
+            try:
+                event = self.review_flow.consume_dry(self.review_receipt, {'sales.txt': SOURCE}, TASK)
+                self.last_model = ('Nonpaying start check passed.\n'
+                                   'Review matched this source and task; one-use receipt consumed.\n'
+                                   'Model requests: 0. Worker started: No.\n'
+                                   'This is not a live task or a spending approval. Paid execution stays paused.\n\nEvidence:\n' +
+                                   json.dumps(self.review_flow.audit, indent=2))
+                self.results.setString_(check_summary(self.last_model))
+                self.headline.setStringValue_('Nonpaying check finished. Nothing ran.')
+            except PermissionError as exc:
+                self.showError_(str(exc))
+            finally:
+                self.review_receipt = None
+                self.dry_button.setEnabled_(False)
 
         def guardClicked_(self, _sender):
             if self.busy:

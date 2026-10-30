@@ -287,3 +287,31 @@ this native task explicitly records `synthetic_input=true` and
 Tests use fake clients/process output only. Actual macOS layout, first-click
 presentation, review scrolling, Cancel and live progress require a Mac checkpoint.
 A live run requires a new one-run approval; earlier run approvals are consumed.
+
+### Paid native execution paused (supersedes the live UI steps above)
+
+An unexpected native run occurred during a review-and-cancel checkpoint. The
+cause is unresolved. The separate run's worker cleanup was verified, but that
+does not establish approval. Do not describe this as a confirmed Cancel defect
+or infer a user click. All native paid execution gates remain disabled.
+
+The replacement UI is nonpaying only:
+
+1. **Review only...** displays the fixed task and synthetic source. It has only
+   **Close review - no task**. No modal result can start a model or worker.
+2. A distinct **Check start - no spend** control consumes an in-memory one-use
+   review receipt bound to the source bytes/names and task hash. It checks the
+   binding and records zero requests/no worker. It cannot approve spending.
+3. Reopening review invalidates the earlier receipt. Changed input, a substituted
+   receipt, missing receipt or replay fails closed. Consumption happens before
+   any continuation. The receipt is not a token usable by the paid worker.
+
+Audit data holds a random run ID, hashes, times and the nonpaying action. It does
+not contain keys, source text, task text or private project files. No inference,
+key preflight, subprocess or container is connected to either replacement UI
+control. The existing live implementation stays behind its disabled gates.
+
+Automated dry tests do not resolve the old event or authorize re-enabling paid
+execution. Future checkpoints: inspect actual Mac review/start layout and
+nonpaying behavior, resolve the approval-path uncertainty, then get a separate
+new user decision before any live task. No further user test is currently asked.

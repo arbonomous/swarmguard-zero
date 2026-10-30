@@ -50,13 +50,17 @@ class NativeModelTaskTests(unittest.TestCase):
             self.assertTrue(run.call_args.kwargs['authorized'])
             self.assertTrue(callable(run.call_args.kwargs['on_event']))
             data=json.loads(out.getvalue());self.assertTrue(data['synthetic_input']);self.assertTrue(data['real_model_execution'])
-    def test_ui_cancel_safe_default_and_no_startup_inference(self):
+    def test_ui_review_and_start_have_no_paid_route(self):
+        import ast
         source=Path('native_workspace.py').read_text()
-        body=source.split('def modelClicked_',1)[1].split('def guardClicked_',1)[0]
-        self.assertLess(body.index("addButtonWithTitle_('Cancel')"),body.index("addButtonWithTitle_('Approve one paid run')"))
-        self.assertLess(body.index('runModal()'),body.index('approved=True'))
-        self.assertIn('NSAlertFirstButtonReturn + 1',body)
-        self.assertIn('setAccessoryView_',body)
+        tree=ast.parse(source)
+        for name in ('modelClicked_', 'dryStartClicked_'):
+            node=next(n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef) and n.name==name)
+            body=ast.get_source_segment(source,node)
+            for forbidden in ('invoke(', 'startWorker_', 'run_once(', 'approved=True', 'subprocess', 'OpenAI'):
+                self.assertNotIn(forbidden,body.replace('# REVIEW ONLY: deliberately no preflight, subprocess or model imports.', ''))
+        self.assertNotIn('Approve one paid run',source)
+        self.assertIn('Close review - no task',source)
 
     def test_progress_stream_from_real_local_subprocess_no_provider(self):
         import sys
