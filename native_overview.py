@@ -37,7 +37,7 @@ def section_text(section: str) -> str:
     if section == 'Latest analysis':
         return ('LATEST LOCAL STATE\nEvidence, forensic details and any visual-box coordinates are data, not proof of host enforcement.\n\n' +
                 json.dumps(read_state(), indent=2, ensure_ascii=False))
-    return ('HOW PROTECTION WORKS\n\n1. Connected IDE hooks and MCP tools apply the policy before routed actions.\n2. The attack catalog documents rules, analysis paths and planned gaps.\n3. Optional AI demos inspect synthetic scenarios and can use API credits; they never force-quit real apps.\n4. Offline copied workspaces have no network or host folder mounts.\n\nNo always-on whole-Mac process enforcement is provided. Cloud-agent workspace networking is not enabled.\n\nModel settings are configuration, not verified readiness.\n' + _model_settings())
+    return ('HOW PROTECTION WORKS\n\n1. Connected IDE hooks and MCP tools apply the policy before routed actions.\n2. The attack catalog documents rules, analysis paths and planned gaps.\n3. Native paid AI tasks and demos are paused. Separately launched analysis tools are not disabled by this native pause.\n4. Offline copied workspaces have no network or host folder mounts.\n\nNo always-on whole-Mac process enforcement is provided. Cloud-agent workspace networking is not enabled.\n\nModel settings are configuration, not verified readiness.\n' + _model_settings())
 
 
 def _activity(row: dict) -> str:

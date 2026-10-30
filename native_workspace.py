@@ -9,6 +9,13 @@ from workspace_files import selected_files, validate_files, safe_name, make_arch
 _CONTROLLER = None
 
 
+def require_offline_native_operation(kind):
+    # All native inference routes stay closed, including legacy demo callbacks.
+    # A future paid flow needs a separate approval design, not a boolean flip.
+    if kind not in ('workspace', 'check'):
+        raise PermissionError('Native paid AI tasks and demos are paused. Nothing started.')
+
+
 def prepare(paths: list[str], command_text: str, output_text: str) -> tuple:
     files = {}
     for value in paths:
@@ -126,6 +133,7 @@ def _build():
             self.details_button = button('Show details', 'detailsClicked:', 365, 540, 205)
             mark = NSImage.alloc().initWithContentsOfFile_(str(Path(__file__).resolve().parent / 'assets' / 'brand' / 'swarmguard-mark.png'))
             brand = NSImageView.alloc().initWithFrame_(NSMakeRect(18, 596, 36, 36))
+            self.brand_icon = mark
             brand.setImage_(mark);brand.setImageScaling_(0);content.addSubview_(brand)
             title = NSTextField.labelWithString_('SwarmGuard')
             title.setFrame_(NSMakeRect(66, 608, 280, 24));content.addSubview_(title)
@@ -135,7 +143,8 @@ def _build():
             self.scenarios = NSPopUpButton.alloc().initWithFrame_pullsDown_(NSMakeRect(18, 500, 330, 28), False)
             self.scenarios.addItemsWithTitles_(['Hidden document trap', 'Stolen keys over network', 'Webpage hijack'])
             content.addSubview_(self.scenarios)
-            button('Review AI demo...', 'demoClicked:', 365, 500, 205)
+            demo_button = button('AI demo paused', 'demoClicked:', 365, 500, 205)
+            demo_button.setEnabled_(False)
             button('Sound preview', 'soundClicked:', 18, 462, 170)
             button('Clear latest notice', 'clearClicked:', 200, 462, 175)
             button('Refresh status', 'sectionChanged:', 385, 462, 185)
@@ -262,27 +271,9 @@ def _build():
             self.sectionChanged_(None)
 
         def demoClicked_(self, _sender):
-            if self.busy:
-                return
-            try:
-                from swarm_brain import api_status
-                if not api_status().get('configured'):
-                    self.showError_('AI key missing or analysis unavailable. No demo ran. Free policy and offline checks still work.');return
-            except ImportError:
-                self.showError_('Analysis dependencies unavailable in this Python. No installation or model request attempted.');return
-            review = NSAlert.alloc().init()
-            review.setMessageText_('Run this synthetic AI demo using API credits?')
-            review.setInformativeText_('This can call the configured Meta models and use credits. The final cost is not known here. Cancel unless you approve that use. It is a pretend attack: no real host process is quarantined. No personal project files are supplied by this demo.')
-            review.addButtonWithTitle_('Run using API credits');review.addButtonWithTitle_('Cancel')
-            if review.runModal() != NSAlertFirstButtonReturn:
-                return
-            scenario = ['steal_env', 'mcp_exfil', 'webpage_hijack'][self.scenarios.indexOfSelectedItem()]
-            def operation():
-                from autonomy import run_autonomous_scenario
-                result, incident = run_autonomous_scenario(scenario, trigger='native_user_approved_demo')
-                self.last_analysis = result
-                return json.dumps({'result': result, 'incident': incident}, indent=2, ensure_ascii=False), None
-            self.startWorker_(operation, kind='demo')
+            # Legacy callback stays inert even if invoked without its disabled button.
+            self.showError_('Native paid AI tasks and demos are paused. Nothing started.')
+            return
 
         def setBusy_(self, value):
             self.busy = bool(value)
@@ -316,11 +307,12 @@ def _build():
 
         @objc.python_method
         def startWorker_(self, operation, kind='workspace'):
+            require_offline_native_operation(kind)
             self.operation_kind = kind
             self.setBusy_(True)
             self.download = None
-            self.headline.setStringValue_('Starting one approved AI task...' if kind == 'model' else 'Checking... please wait for the result and cleanup.')
-            self.results.setString_('Running ONE approved Meta task. Synthetic input, real model. Keep SwarmGuard open through cleanup. No automatic retry.' if kind == 'model' else 'Running the approved synthetic AI demo. This can use API credits. Keep SwarmGuard open.' if kind == 'demo' else 'Running in a disposable offline workspace.\nSupervising the owned workload, applying policy, then verifying cleanup.\n\nKeep SwarmGuard open. No network or AI credits are used by offline checks.')
+            self.headline.setStringValue_('Checking... please wait for the result and cleanup.')
+            self.results.setString_('Running in a disposable offline workspace.\nSupervising the owned workload, applying policy, then verifying cleanup.\n\nKeep SwarmGuard open. No network or AI credits are used by offline checks.')
             def worker():
                 try:
                     message, download = operation()
@@ -358,6 +350,7 @@ def _build():
             self.review_receipt = None
             self.dry_button.setEnabled_(False)
             review = NSAlert.alloc().init()
+            review.setIcon_(self.brand_icon)
             review.setMessageText_('Review only - paid execution is paused')
             review.setInformativeText_('Closing this screen cannot approve spending or start a task. The next control is a separate nonpaying check.')
             review_scroll = NSScrollView.alloc().initWithFrame_(NSMakeRect(0, 0, 490, 240))

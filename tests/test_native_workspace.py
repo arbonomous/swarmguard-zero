@@ -92,3 +92,40 @@ class ActivationIndependentPresentationTests(unittest.TestCase):
         panel.makeKeyWindow.assert_called_once()
         panel.orderFrontRegardless.assert_called_once()
         panel.makeKeyAndOrderFront_.assert_not_called()
+
+
+class NativePaidPauseTests(unittest.TestCase):
+    def method(self, name):
+        import ast
+        tree=ast.parse(Path(native.__file__).read_text())
+        node=next(n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef) and n.name==name)
+        node.decorator_list=[]
+        scope={'require_offline_native_operation':native.require_offline_native_operation}
+        exec(compile(ast.Module(body=[node],type_ignores=[]),'<native method>','exec'),scope)
+        return scope[name]
+    def test_legacy_demo_callback_inert_without_imports(self):
+        from unittest.mock import Mock
+        controller=Mock()
+        self.method('demoClicked_')(controller,None)
+        controller.showError_.assert_called_once()
+        self.assertIn('paused',controller.showError_.call_args.args[0])
+        controller.startWorker_.assert_not_called()
+    def test_shared_launch_refuses_all_nonoffline_kinds_before_state_or_thread(self):
+        from unittest.mock import Mock
+        for kind in ('model','demo','unknown',None):
+            controller,operation=Mock(),Mock()
+            with self.assertRaises(PermissionError):self.method('startWorker_')(controller,operation,kind=kind)
+            operation.assert_not_called();self.assertEqual(controller.mock_calls,[])
+        for kind in ('workspace','check'):native.require_offline_native_operation(kind)
+    def test_no_native_inference_callsite_and_paused_control(self):
+        source=Path(native.__file__).read_text()
+        for token in ('run_autonomous_scenario','from autonomy','from swarm_brain','invoke(', 'run_once(', 'OpenAI('):
+            self.assertNotIn(token,source)
+        self.assertIn("demo_button.setEnabled_(False)",source)
+        self.assertIn("review.setIcon_(self.brand_icon)",source)
+
+    def test_overview_configuration_reads_do_not_create_provider_client(self):
+        import swarm_brain, native_overview
+        with patch.object(swarm_brain,'OpenAI') as client:
+            for section in ('Status','About','Latest analysis'):native_overview.section_text(section)
+            client.assert_not_called()

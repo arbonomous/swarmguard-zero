@@ -315,3 +315,25 @@ Automated dry tests do not resolve the old event or authorize re-enabling paid
 execution. Future checkpoints: inspect actual Mac review/start layout and
 nonpaying behavior, resolve the approval-path uncertainty, then get a separate
 new user decision before any live task. No further user test is currently asked.
+
+
+### Native pause audit (October 30)
+
+The separate legacy AI demo control was not covered by the native task pause.
+It is now disabled and its callback is inert. The shared native worker launcher
+accepts only offline workspace/check kinds and refuses model/demo/unknown kinds
+before changing UI state or starting a thread. This closes a leftover route; it
+does not explain the earlier unexpected task result.
+
+The Mac review and separate nonpaying check at db08f89 were observed working:
+the reported check consumed one receipt with zero model requests and no worker.
+That is not a spending approval. Native paid tasks and demos remain paused.
+The review alert now explicitly uses the existing shield mark; its new Mac
+appearance has not yet been visually verified.
+
+This is a native-menu safety boundary, not a repository-wide inference kill
+switch. The separately launched browser dashboard, stress-test scripts,
+managed_model/meta_agent functions and analysis APIs retain paid-capable paths.
+Do not run them as an alternative to the paused native controls. No new paid
+execution is authorized by this patch. Existing hooks/proxy policy routes are
+not changed by it.

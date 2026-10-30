@@ -1,6 +1,6 @@
 """Fixed synthetic-input task. Import/check never calls the model.
 
-The native review approves exactly one invocation, not a saved spending grant.
+Native paid invocation is disabled. The current review never grants spending authority.
 Model/key stay on host; the offline worker is a fixed relay, not model weights.
 """
 from __future__ import annotations
