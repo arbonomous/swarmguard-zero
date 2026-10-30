@@ -33,7 +33,7 @@ def review_text(plan):
     return ('REVIEW ONLY - NOTHING STARTED\nOnly SwarmGuard-owned work is guarded. Other Mac agents are not covered.\n\nGoal:\n'+plan.goal+
         '\n\nExact source copies:\n'+'\n\n'.join(k+'\n'+v.decode() for k,v in plan.source.items())+
         '\n\n'+WARNING+'\n\nThe task must propose one review artifact. Both defenders must allow it before creation. A refusal stops/removes the worker automatically. No project changes or automatic export.\n\nManifest: '+plan.manifest.fingerprint()+
-        '\n\nLive Start remains disabled pending coordinated release. Closing review never starts anything.')
+        ('\n\nStart uses these exact copies and bounded credits. Click Start only if you approve sending them to Meta. Closing review never starts anything.' if NATIVE_LIVE_RELEASED else '\n\nLive Start remains disabled pending coordinated release. Closing review never starts anything.'))
 
 
 class StartFlow:
@@ -44,7 +44,7 @@ class StartFlow:
         self.invalidate();self.plan=prepare(source,goal)
         self.ticket=self.coordinator.review(self.plan.manifest)
         return review_text(self.plan)
-    def start(self,source,goal,*,explicit_start=False,client=None):
+    def start(self,source,goal,*,explicit_start=False,client=None,on_progress=None):
         # Release guard precedes approval/claim/key/client/Docker access.
         if not NATIVE_LIVE_RELEASED and not isinstance(client,Mock):
             self.invalidate();raise PermissionError('Native live Start is not released. Nothing started.')
@@ -55,7 +55,7 @@ class StartFlow:
             plan,ticket=self.plan,self.ticket
             self.coordinator.decide_dry(ticket,plan.manifest,explicit_start=True)
             self.plan=None;self.ticket=None
-            return execute(plan,self.coordinator,ticket,client=client)
+            return execute(plan,self.coordinator,ticket,client=client,on_progress=on_progress)
         except BaseException:
             self.invalidate();raise
 
@@ -86,21 +86,46 @@ class SingleArtifactSession:
         self.pending=None;return result
 
 
-def execute(plan,coordinator,ticket,*,client):
-    # No general live transport exists yet. Mock validation cannot enable native.
-    if not isinstance(client,Mock):raise PermissionError('Prepared execution accepts only mock transport until release')
+def execute(plan,coordinator,ticket,*,client=None,on_progress=None):
+    # Live transport requires coordinated release; mock validation cannot enable it.
+    mocked=isinstance(client,Mock)
+    if not mocked and not NATIVE_LIVE_RELEASED:raise PermissionError('Native execution is not released')
     if prepare(plan.source,plan.goal).manifest!=plan.manifest:raise PermissionError('Changed plan')
     from provider_bridge import ProviderBridge
     from defense_council import DefenseCouncil,ROLES
     from managed_guard import Guard
     def operation(claim):
-        bridge=ProviderBridge(coordinator,claim,plan.manifest,client=client,mock_only=True)
+        def progress(text):
+            if on_progress is not None:
+                try:on_progress(text)
+                except Exception:pass # Display failure cannot bypass cleanup.
+        if mocked:
+            bridge=ProviderBridge(coordinator,claim,plan.manifest,client=client,mock_only=True)
+        else:
+            # Client/key are constructed only at first reserved request, after
+            # Guard has verified the boundary and inspected a running worker.
+            transport=None
+            def create(**kwargs):
+                nonlocal transport
+                if transport is None:
+                    import os
+                    from pathlib import Path
+                    from dotenv import load_dotenv
+                    from openai import OpenAI
+                    load_dotenv(Path(__file__).resolve().parent/'.env',override=False)
+                    key=os.environ.get('MODEL_API_KEY') or os.environ.get('META_API_KEY')
+                    if not key:raise PermissionError('Host-local model key missing')
+                    transport=OpenAI(api_key=key,base_url=BASE_URL,max_retries=0,timeout=10)
+                progress('AI request in progress. No retries.')
+                return transport.chat.completions.create(**kwargs)
+            lazy=SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+            bridge=ProviderBridge.for_native_task(coordinator,claim,plan,client=lazy)
         council=DefenseCouncil(plan.goal,{r:bridge.defender(r) for r in ROLES},reserve=lambda role,size:None,timeout=12)
         session=SingleArtifactSession(bridge,plan)
-        result=Guard(plan.manifest.image).run(dict(plan.source),list(plan.manifest.command),seconds=40,model_session=session,defense_council=council)
+        result=Guard(plan.manifest.image).run(dict(plan.source),list(plan.manifest.command),seconds=40,model_session=session,defense_council=council,on_event=lambda event:progress({'boundary_verified':'Workspace boundary checked.','started':'Owned worker started.','proposal_received':'Reviewing the proposed action.','denied':'Action blocked. Stopping owned worker.','stopping':'Stopping the owned worker; cleanup is not yet verified.','stopped':'Worker stop verified.','removed':'Worker removal checked.'}.get(event['kind'],'Supervising task and cleanup.')))
         result.update(model_finished=session.finished,model_requests=session.turns,
             defense_reviews=council.events,all_role_usage=bridge.usage,provider_diagnostics=bridge.diagnostics,
-            mocked_model=True,native_paid_enabled=False,proposal_origin='actual task model proposal')
+            mocked_model=mocked,native_paid_enabled=not mocked,proposal_origin='actual task model proposal')
         # No partial/denied/unclean artifact is exportable, even from an earlier effect.
         clean=result.get('stopped') is True and result.get('removed') is True
         result['export_permitted']=bool(clean and session.finished and not result.get('denied') and not result.get('failure'))

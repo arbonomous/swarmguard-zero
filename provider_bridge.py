@@ -56,6 +56,16 @@ class ProviderBridge:
         obj.client=client;obj.mock_only=False;obj.failed=False;obj.usage=[];obj.diagnostics=[]
         return obj
 
+    @classmethod
+    def for_native_task(cls,coordinator,claim,plan,*,client):
+        from native_task_flow import NATIVE_LIVE_RELEASED,prepare
+        if not NATIVE_LIVE_RELEASED or prepare(plan.source,plan.goal).manifest!=plan.manifest:
+            raise PermissionError('Native transport is not released or plan changed')
+        obj=object.__new__(cls)
+        obj.coordinator=coordinator;obj.claim=claim;obj.manifest=plan.manifest
+        obj.client=client;obj.mock_only=False;obj.failed=False;obj.usage=[];obj.diagnostics=[]
+        return obj
+
     def request(self,role,messages,*,tools=None):
         if self.failed:raise PermissionError('Provider run already stopped; no retries')
         try:

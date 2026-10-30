@@ -86,6 +86,7 @@ class Guard:
             created=True;runner.docker(*args)
             runner.verify_container(json.loads(runner.docker('inspect',name).stdout)[0],name,image_id)
             self.record('boundary_verified',image=image_id)
+            if on_event:on_event(self.events[-1])
             env=os.environ.copy()
             for key in ('DOCKER_HOST','DOCKER_CONTEXT','DOCKER_TLS_VERIFY','DOCKER_CERT_PATH'):
                 env.pop(key,None)
@@ -156,6 +157,7 @@ class Guard:
         except Exception as exc:
             failure=type(exc).__name__+': '+str(exc)[:180]
             self.record('stopping',reason=failure)
+            if on_event:on_event(self.events[-1])
         finally:
             if created:
                 try:

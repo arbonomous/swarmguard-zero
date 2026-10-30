@@ -646,3 +646,27 @@ the historical unexpected native launch is claimed by this preparation.
 Denied, unfinished, failed or cleanup-uncertain runs cannot export prepared native
 artifacts. Successful output is still untrusted and review-only, with manual export
 to a new archive. Existing fixed headless checks remain distinct from this flow.
+
+
+### Prepared native Start and transport wiring
+
+The unreleased native Start handler now re-reads chosen files and the goal,
+compares the complete plan to its reviewed snapshot, and invokes StartFlow only
+from the separate click. Its worker publishes bounded phase updates on the main
+thread and withholds downloads unless completion and cleanup both pass. UI phase
+updates contain no source text, credentials or provider exceptions. The scoped
+provider factory reconstructs and compares the exact native manifest; host-local
+key/client construction is lazy, after the durable reservation and after Guard's
+verified boundary/running-worker checks. The general provider constructor stays
+disabled. Existing fixed validation factories remain separate.
+
+NATIVE_LIVE_RELEASED remains FALSE. No live native button or startup path is
+enabled. Tests exercise unreleased refusal, changed-input refusal, lazy transport
+without key access on boundary failure, and the mock task/defender path. Actual
+Mac pixel placement, event delivery, phase updates, review/close/change/Start
+behavior and purposeful live task execution remain unverified. Release requires
+one coordinated Mac review, then a deliberate release decision. Selected input
+must be approved for the displayed Meta disclosure; the credit grant does not
+supply permission to send arbitrary private files. The historical unexpected
+native launch remains unexplained, not retroactively authorized or solved by
+this new path.

@@ -240,6 +240,8 @@ def _build():
             if workspace:
                 self.save_button.setHidden_(protected)
                 self.protected_start.setHidden_(not protected)
+                from native_task_flow import NATIVE_LIVE_RELEASED
+                self.protected_start.setTitle_('Start reviewed task' if NATIVE_LIVE_RELEASED else 'Start task - not released')
                 self.protected_start.setEnabled_(False)
                 self.exports_label.setHidden_(protected)
                 self.workspace_scope.setStringValue_('Local plan only. Execution paused; nothing sent to a provider.\nOther agents and the rest of your Mac are not protected.' if protected else 'Offline copied files only. No host mounts, keys, downloads or cloud agents.\nAgents running elsewhere are not protected.')
@@ -317,6 +319,7 @@ def _build():
             self.busy = bool(value)
             self.home_button.setEnabled_(not self.busy)
             self.sections.setEnabled_(not self.busy)
+            if self.busy:self.protected_start.setEnabled_(False)
             for view in (self.check_button, self.pick_button, self.run_button, self.command, self.exports):
                 view.setEnabled_(not self.busy)
             self.save_button.setEnabled_(not self.busy and self.download is not None)
@@ -383,7 +386,7 @@ def _build():
             self.setBusy_(False)
 
         def modelProgress_(self, text):
-            if self.busy and self.operation_kind == 'model':
+            if self.busy and self.operation_kind in ('model','protected'):
                 self.headline.setStringValue_(str(text).split('\n')[0])
                 self.results.setString_(str(self.results.string()) + '\n' + str(text))
 
@@ -503,9 +506,44 @@ def _build():
             self.startWorker_(operation, kind='check')
 
         def protectedStartClicked_(self, _sender):
-            if self.protected_flow is not None:self.protected_flow.invalidate()
-            self.protected_plan = None
-            self.showError_('Native live Start is not released. Review cannot start a paid task.')
+            if self.busy:return
+            from native_task_flow import NATIVE_LIVE_RELEASED
+            if not NATIVE_LIVE_RELEASED:
+                if self.protected_flow is not None:self.protected_flow.invalidate()
+                self.protected_plan = None
+                self.showError_('Native live Start is not released. Review cannot start a paid task.')
+                return
+            try:
+                from protected_task import plan_files
+                from native_task_flow import prepare as prepare_task
+                current=plan_files(self.paths,str(self.command.stringValue()))
+                current=prepare_task(current.source,current.goal)
+                if self.protected_flow is None or self.protected_flow.plan is None or current.manifest!=self.protected_flow.plan.manifest:
+                    raise PermissionError('Inputs changed. Review again before Start.')
+                # A distinct click is the start decision. No modal return enters here.
+                flow=self.protected_flow
+                self.protected_plan=None
+                self.protected_start.setEnabled_(False)
+                self.operation_kind='protected'
+                self.download=None;self.setBusy_(True)
+                self.headline.setStringValue_('Starting reviewed task. Automatic defenses are on.')
+                self.results.setString_('Running only the reviewed copies and goal. Keep SwarmGuard open until cleanup finishes.')
+                def progress(text):
+                    self.performSelectorOnMainThread_withObject_waitUntilDone_('modelProgress:',text,False)
+                def worker():
+                    try:
+                        from protected_task import result_view,export_review
+                        result=flow.start(current.source,current.goal,explicit_start=True,on_progress=progress)
+                        message=result_view(result)
+                        self.download=export_review(result) if result.get('export_permitted') else None
+                    except Exception:
+                        message='Task could not finish. No retry or export. Review cleanup evidence before another start.'
+                        self.download=None
+                    self.performSelectorOnMainThread_withObject_waitUntilDone_('finished:',message,False)
+                threading.Thread(target=worker,daemon=True).start()
+            except Exception as exc:
+                if self.protected_flow is not None:self.protected_flow.invalidate()
+                self.showError_(str(exc) if isinstance(exc,(PermissionError,ValueError)) else 'Start refused. Review again.')
 
         def runClicked_(self, _sender):
             if self.busy:
@@ -519,7 +557,9 @@ def _build():
                     if self.protected_flow is None:
                         self.protected_flow = StartFlow(Coordinator(Path.home() / 'Library' / 'Application Support' / 'SwarmGuard' / 'native-task-preparation.sqlite3'))
                     self.results.setString_(self.protected_flow.review(self.protected_plan.source,self.protected_plan.goal))
-                    self.headline.setStringValue_('Reviewed locally. Live Start not released; nothing sent.')
+                    from native_task_flow import NATIVE_LIVE_RELEASED
+                    self.protected_start.setEnabled_(NATIVE_LIVE_RELEASED)
+                    self.headline.setStringValue_('Reviewed locally. Nothing sent. Start requires a separate click.' if NATIVE_LIVE_RELEASED else 'Reviewed locally. Live Start not released; nothing sent.')
                 except Exception as exc:
                     self.protected_plan = None
                     self.showError_(str(exc))

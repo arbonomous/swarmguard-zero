@@ -54,3 +54,32 @@ class NativeTaskFlowTests(unittest.TestCase):
         self.assertEqual(prepare({'x.txt':b'public'},'Goal').manifest.all_role_requests,3)
         with self.assertRaises(ValueError):prepare({'x.txt':b'x'*1025},'Goal')
         with self.assertRaises(PermissionError):export_review(dict(export_permitted=False,stopped=True,removed=True,artifacts={'x.txt':b'no'}))
+
+class ScopedTransportTests(unittest.TestCase):
+    def test_unreleased_transport_refuses_changed_or_general_entry(self):
+        from provider_bridge import ProviderBridge
+        plan=prepare({'x.txt':b'public'},'Checklist')
+        with self.assertRaises(PermissionError):ProviderBridge.for_native_task(None,None,plan,client=Mock())
+    def test_lazy_transport_no_key_before_guard_requests(self):
+        from native_task_flow import execute
+        with tempfile.TemporaryDirectory() as tmp:
+            gate=Coordinator(Path(tmp)/'audit.db');plan=prepare({'x.txt':b'public'},'Checklist')
+            ticket=gate.review(plan.manifest);gate.decide_dry(ticket,plan.manifest,explicit_start=True)
+            def guard(*args,**kwargs):
+                return dict(artifacts={},stopped=True,removed=True,denied=False,failure='Boundary refused')
+            with patch('native_task_flow.NATIVE_LIVE_RELEASED',True),patch('managed_guard.Guard.run',side_effect=guard),patch('dotenv.load_dotenv') as load,patch('openai.OpenAI') as api:
+                result=execute(plan,gate,ticket)
+            load.assert_not_called();api.assert_not_called();self.assertFalse(result['export_permitted'])
+    def test_native_start_unreleased_and_changed_inputs_never_threads(self):
+        import ast,native_workspace
+        node=next(n for n in ast.walk(ast.parse(Path(native_workspace.__file__).read_text())) if isinstance(n,ast.FunctionDef) and n.name=='protectedStartClicked_')
+        scope={};exec(compile(ast.Module(body=[node],type_ignores=[]),'<native Start>','exec'),scope)
+        controller=Mock();controller.busy=False
+        scope['protectedStartClicked_'](controller,None)
+        controller.setBusy_.assert_not_called();controller.showError_.assert_called_once()
+        with tempfile.TemporaryDirectory() as tmp:
+            p=Path(tmp)/'notes.txt';p.write_text('public')
+            controller=Mock();controller.busy=False;controller.paths=[str(p)]
+            controller.command.stringValue.return_value='Goal';controller.protected_flow=None
+            with patch('native_task_flow.NATIVE_LIVE_RELEASED',True):scope['protectedStartClicked_'](controller,None)
+            controller.setBusy_.assert_not_called();controller.showError_.assert_called_once()
