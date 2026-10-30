@@ -124,6 +124,7 @@ def _build():
             self.review_receipt = None
             self.execution_gate = None
             self.execution_ticket = None
+            self.protected_plan = None
             self.visual_panel = None
             content = self.panel.contentView()
             def label(text, y, height=36):
@@ -141,7 +142,7 @@ def _build():
                 field = NSTextField.alloc().initWithFrame_(NSMakeRect(18, y, 554, 28))
                 field.setStringValue_(text);content.addSubview_(field);return field
             self.sections = NSPopUpButton.alloc().initWithFrame_pullsDown_(NSMakeRect(18, 540, 330, 28), False)
-            self.sections.addItemsWithTitles_(['Status', 'Attack catalog', 'Policy checks', 'Activity and evidence', 'Latest analysis', 'Safety check', 'AI task', 'Workspace', 'About'])
+            self.sections.addItemsWithTitles_(['Status', 'Attack catalog', 'Policy checks', 'Activity and evidence', 'Latest analysis', 'Safety check', 'AI task', 'Protected task', 'Workspace', 'About'])
             self.sections.setTarget_(self);self.sections.setAction_('sectionChanged:');content.addSubview_(self.sections)
             self.details_button = button('Show details', 'detailsClicked:', 365, 540, 205)
             mark = NSImage.alloc().initWithContentsOfFile_(str(Path(__file__).resolve().parent / 'assets' / 'brand' / 'swarmguard-mark.png'))
@@ -164,15 +165,15 @@ def _build():
             button('View latest visual evidence', 'visualClicked:', 18, 424, 265)
             self.top_views = list(content.subviews())[before_details:]
             before_workspace = len(content.subviews())
-            label('Offline copied files only. No host mounts, keys, downloads or cloud agents.\nAgents running elsewhere are not protected.', 598, 44)
+            self.workspace_scope = label('Offline copied files only. No host mounts, keys, downloads or cloud agents.\nAgents running elsewhere are not protected.', 598, 44)
             self.check_button = button('Run complete offline check', 'checkClicked:', 18, 556, 265)
             self.pick_button = button('Choose source files...', 'chooseClicked:', 300, 556, 270)
             self.selection = label('No files selected. Only explicitly chosen source is read.', 514)
-            label('Trusted in-image command (absolute executable):', 480, 22)
+            self.command_label = label('Trusted in-image command (absolute executable):', 480, 22)
             self.command = entry("/bin/sh -c 'cat input.txt > result.txt'", 449)
-            label('Requested output filenames (comma separated, up to 20):', 417, 22)
+            self.exports_label = label('Requested output filenames (comma separated, up to 20):', 417, 22)
             self.exports = entry('result.txt', 387)
-            label('1 MiB/file, 4 MiB total. Hidden/credential-like paths refused.\nSecret detection is not exhaustive. Never choose private documents or keys.', 333, 43)
+            self.workspace_limits = label('1 MiB/file, 4 MiB total. Hidden/credential-like paths refused.\nSecret detection is not exhaustive. Never choose private documents or keys.', 333, 43)
             self.run_button = button('Review and run copies', 'runClicked:', 18, 291, 265)
             self.save_button = button('Save outputs for review...', 'saveClicked:', 300, 291, 270)
             self.save_button.setEnabled_(False)
@@ -216,7 +217,8 @@ def _build():
             self.showing_check_details = False
             self.dry_button.setHidden_(self.mode != 'AI task')
             self.dry_button.setEnabled_(self.review_flow.pending is not None)
-            workspace = self.mode == 'Workspace'
+            protected = self.mode == 'Protected task'
+            workspace = self.mode in ('Workspace', 'Protected task')
             for view in self.workspace_views:
                 view.setHidden_(not workspace)
             for view in self.top_views:
@@ -230,6 +232,20 @@ def _build():
             if self.mode == 'Safety check':
                 self.results.setString_(check_summary(getattr(self, 'last_check', 'Not checked yet.\n\nTest a scripted workload: allow a safe task, block a forbidden request, then stop and remove its container.\n\nNo private files, network or AI credits. Not an intelligent AI agent.')));return
             if workspace:
+                self.exports_label.setHidden_(protected)
+                self.workspace_scope.setStringValue_('Local plan only. Execution paused; nothing sent to a provider.\nOther agents and the rest of your Mac are not protected.' if protected else 'Offline copied files only. No host mounts, keys, downloads or cloud agents.\nAgents running elsewhere are not protected.')
+                self.workspace_limits.setStringValue_('8 KiB total source; 2048-byte goal. Outputs stay review-only.\nSecret detection is limited. Never select private documents or keys.' if protected else '1 MiB/file, 4 MiB total. Hidden/credential-like paths refused.\nSecret detection is not exhaustive. Never choose private documents or keys.')
+                self.command_label.setStringValue_('Goal for these selected source copies:' if protected else 'Trusted in-image command (absolute executable):')
+                self.run_button.setTitle_('Review protected task' if protected else 'Review and run copies')
+                if protected:
+                    if str(self.command.stringValue()).startswith('/bin/'):
+                        self.command.setStringValue_('')
+                    self.exports.setHidden_(True)
+                    self.check_button.setHidden_(True)
+                    self.save_button.setEnabled_(False)
+                    self.results.setString_('Choose non-secret text source and write a goal. Review exact copies before any provider disclosure. Execution is paused; this cannot run a model. Only SwarmGuard-owned tasks can be guarded. Outside agents and the rest of your Mac are not protected.');return
+                if not str(self.command.stringValue()).startswith('/'):
+                    self.command.setStringValue_("/bin/sh -c 'cat input.txt > result.txt'")
                 self.results.setString_('Offline scratch only. Run the complete check first. No cloud agent is installed.');return
             try:
                 from native_overview import section_text
@@ -309,7 +325,13 @@ def _build():
             if chooser.runModal() == NSModalResponseOK:
                 paths = [str(url.path()) for url in chooser.URLs()]
                 try:
-                    files, _, _ = prepare(paths, str(self.command.stringValue()), str(self.exports.stringValue()))
+                    if self.mode == 'Protected task':
+                        from protected_task import plan_files
+                        plan = plan_files(paths, str(self.command.stringValue()) or 'Review selected copies')
+                        files = plan.source
+                        self.protected_plan = None
+                    else:
+                        files, _, _ = prepare(paths, str(self.command.stringValue()), str(self.exports.stringValue()))
                     self.paths = paths
                     self.selection.setStringValue_(f'{len(files)} source files selected. Review shows every name before launch.')
                     self.results.setString_('Selected files:\n' + '\n'.join(files))
@@ -471,6 +493,16 @@ def _build():
 
         def runClicked_(self, _sender):
             if self.busy:
+                return
+            if self.mode == 'Protected task':
+                try:
+                    from protected_task import plan_files
+                    self.protected_plan = plan_files(self.paths, str(self.command.stringValue()))
+                    self.results.setString_(self.protected_plan.preview())
+                    self.headline.setStringValue_('Plan reviewed locally. Execution paused; nothing sent.')
+                except Exception as exc:
+                    self.protected_plan = None
+                    self.showError_(str(exc))
                 return
             try:
                 # Read once, review those exact bytes/names, then run that snapshot.

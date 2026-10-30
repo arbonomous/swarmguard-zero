@@ -389,3 +389,35 @@ Unclear results remain spent/unknown and cannot retry. The subprocess tests use
 real local IPC, not real inference. Three dry reservations succeed; a fourth is
 refused with zero model requests. No paid UI or execution route uses this file.
 This is not a whole-computer agent guard and does not authenticate human intent.
+
+
+### Protected task intake (execution paused)
+
+Native `Protected task` accepts explicit text source selections and a user-written
+goal instead of the fixed sales fixture. `Review protected task` snapshots and
+validates the selected files and displays exact source and goal locally. It
+cannot start a model, container or provider disclosure. Paid native actions stay
+off. Selected source is limited to 8 KiB total and goal to 2048 UTF-8 bytes;
+credential-like names/content are refused, but secret detection is not complete.
+No automatic file scanning, host mounts or application changes are introduced.
+
+The backend plan is immutable and binds this source/goal to the existing
+managed-model tool schema, fixed relay/image and request limits. An explicit
+mock-only test adapter connects that plan through the durable coordinator to the
+existing ModelSession/Broker/Guard flow. The same run budget is committed before
+each mocked model request. It supports useful review-only output, policy denial
+and verified cleanup evidence. Artifact export refuses unverified cleanup and
+never applies content to the source project. `execute_native` always refuses.
+There is no live or paid adapter for this flow yet.
+
+Tests cover real selected-file snapshots, immutable plans, goals, secret/size
+limits, the exact native review callback with no worker launch, general model-
+selected read/write/forbidden tools through mocked Guard lifecycle, reservation
+ordering, request exhaustion and output withholding on uncertain cleanup.
+These tests do not certify actual native layout, OrbStack containment or live
+intelligence. The new native section is visually unverified and is not ready for
+an unqualified UI-completion claim. No additional Mac test is requested now.
+
+Scope is shown in the product: only tasks launched through SwarmGuard can be
+managed. Other agents and the rest of the Mac are outside this boundary. This
+is an entry point toward autonomous computer protection, not host-wide policing.
