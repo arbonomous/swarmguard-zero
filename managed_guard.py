@@ -21,34 +21,45 @@ class Broker:
     source: dict[str, bytes]
     artifacts: dict[str, bytes] = field(default_factory=dict)
     calls: int = 0
+    defense_council: object = None
 
     def __post_init__(self):
         self.source = validate_files(self.source)
 
-    def request(self, request: dict) -> dict:
-        self.calls += 1
-        if self.calls > 64:
-            raise PermissionError('Tool-call limit exceeded')
+    def validate_request(self, request):
+        # No effects here. Hard policy is checked before any model reviewer.
         if not isinstance(request, dict) or set(request) != {'id','tool','arguments'}:
             raise PermissionError('Unsupported request schema')
         if not isinstance(request['id'], int) or isinstance(request['id'], bool):
             raise PermissionError('Request ID must be an integer')
         tool, args = request['tool'], request['arguments']
-        if not isinstance(args, dict):
-            raise PermissionError('Arguments must be an object')
+        if not isinstance(args, dict):raise PermissionError('Arguments must be an object')
         if tool == 'read_source' and set(args) == {'path'}:
             path = safe_name(args['path'])
-            if path not in self.source:
-                raise PermissionError('Source path was not explicitly imported')
-            return {'id':request['id'], 'ok':True, 'text':self.source[path].decode('utf-8')}
+            if path not in self.source:raise PermissionError('Source path was not explicitly imported')
+            return tool, path
         if tool == 'write_artifact' and set(args) == {'path','text'}:
             path = safe_name(args['path'])
-            if not isinstance(args['text'],str):
-                raise PermissionError('Artifact text must be UTF-8 text')
+            if not isinstance(args['text'],str):raise PermissionError('Artifact text must be UTF-8 text')
             candidate = dict(self.artifacts);candidate[path] = args['text'].encode('utf-8')
-            self.artifacts = validate_files(candidate)
-            return {'id':request['id'], 'ok':True, 'saved':path}
+            validate_files(candidate)
+            return tool, path
         raise PermissionError('Tool is not allowed: ' + str(tool)[:80])
+
+    def request(self, request: dict) -> dict:
+        self.calls += 1
+        if self.calls > 64:raise PermissionError('Tool-call limit exceeded')
+        # Snapshot protects the exact reviewed proposal from mutation by a caller.
+        request=json.loads(json.dumps(request))
+        tool,path=self.validate_request(request)
+        if self.defense_council is not None:
+            self.defense_council.review(request,self.source)
+        # Revalidate even after unanimous review. Reviewers can never widen policy.
+        self.validate_request(request)
+        if tool == 'read_source':
+            return {'id':request['id'], 'ok':True, 'text':self.source[path].decode('utf-8')}
+        self.artifacts[path] = request['arguments']['text'].encode('utf-8')
+        return {'id':request['id'], 'ok':True, 'saved':path}
 
 
 class Guard:
@@ -60,10 +71,10 @@ class Guard:
         self.events.append({'kind':kind,'elapsed':round(time.monotonic()-self.started,3), **data})
 
     def run(self, source: dict[str,bytes], command: list[str], seconds: int = 30,
-            on_event: Callable[[dict],None] | None = None, model_session=None) -> dict:
+            on_event: Callable[[dict],None] | None = None, model_session=None, defense_council=None) -> dict:
         if not 1 <= seconds <= 120:
             raise ValueError('Runtime must be 1..120 seconds')
-        broker = Broker(source)
+        broker = Broker(source, defense_council=defense_council)
         self.events=[];self.started=time.monotonic()
         image_id=runner.local_image(self.image)
         name='swarmguard-'+uuid.uuid4().hex

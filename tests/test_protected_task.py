@@ -79,3 +79,21 @@ class ProtectedTaskTests(unittest.TestCase):
             with patch('managed_guard.Guard.run',new=guard),self.assertRaises(PermissionError):run_mock(plan,gate,ticket,client=client)
             self.assertEqual(client.chat.completions.create.call_count,3)
             self.assertEqual(gate.audit()[-1]['state'],'unknown')
+    def test_protected_task_defenders_veto_actual_model_action_before_write(self):
+        from test_defense_council import reviewer,ROLES
+        with tempfile.TemporaryDirectory() as tmp:
+            gate=Coordinator(Path(tmp)/'dry.db');plan=plan_source({'notes.txt':b'notes'},'Make checklist')
+            ticket=gate.review(plan.manifest);gate.decide_dry(ticket,plan.manifest,explicit_start=True)
+            client=Mock();client.chat.completions.create.return_value=response('write_artifact',{'path':'checklist.md','text':'candidate'})
+            reviewers={r:reviewer(r,'deny' if r=='data_safety' else 'allow') for r in ROLES}
+            def guard(_self,source,command,**kw):
+                from managed_guard import Broker
+                broker=Broker(source,defense_council=kw['defense_council']);session=kw['model_session']
+                action=session.request({'id':0,'tool':'model_next','arguments':{}},broker)
+                with self.assertRaises(PermissionError):session.request(action,broker)
+                return dict(denied=True,stopped=True,removed=True,artifacts=broker.artifacts,failure='policy stop')
+            with patch('managed_guard.Guard.run',new=guard):result=run_mock(plan,gate,ticket,client=client,reviewers=reviewers)
+            self.assertFalse(result['artifacts']);self.assertTrue(result['denied'])
+            self.assertEqual(gate.audit()[-1]['requests'],3)
+            self.assertEqual([e['decision'] for e in result['defense_reviews']],['allow','deny','stopped_before_effect'])
+            self.assertEqual(client.chat.completions.create.call_count,1)

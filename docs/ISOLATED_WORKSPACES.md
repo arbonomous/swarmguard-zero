@@ -421,3 +421,36 @@ an unqualified UI-completion claim. No additional Mac test is requested now.
 Scope is shown in the product: only tasks launched through SwarmGuard can be
 managed. Other agents and the rest of the Mac are outside this boundary. This
 is an entry point toward autonomous computer protection, not host-wide policing.
+
+### Defense council action seam (mock-only)
+
+The managed Broker now validates its hard tool/file policy without effects,
+then can hold an actual proposed action for a defense council. Two separate mock
+reviewers inspect task goal, selected source and exact proposed action:
+goal-integrity and data-safety. Each has a separate payload and must return a
+strict report bound to the action hash with an evidence quote found in context.
+Only unanimous allow proceeds; deny, uncertain, malformed/ungrounded response,
+error or timeout stops the session before the Broker effect. Hard policy runs
+again afterward and cannot be widened by reviewer votes. No per-defense human
+approval is requested. Council audit records hashes/role/decision, not content.
+
+Protected task's mock adapter connects the council to its existing task-model,
+Broker and Guard path. Task and defender requests reserve from one manifest-bound
+durable run budget, with role sublimits, before callbacks. Default protected
+plans cap all roles at twelve requests (task <=3, each defender <=4, analyst <=1).
+No analyst model is implemented or called. Existing fixed-task budgets remain
+three. Budget exhaustion refuses further work rather than silently increasing
+calls or retrying. Token/context caps remain bound in the manifest.
+
+Tests verify useful work waits for both defenders, hard denials skip reviewers,
+veto/uncertain/error/invalid/timeout occur before effects, payload mutation cannot
+substitute an effect, shared budgets are enforced, and a real local protocol
+process is stopped after a veto with mocked Docker cleanup. Protected task's
+actual model-selected action is also vetoed through the integrated mock path.
+No real Docker containment or model judgement is established by those tests.
+
+This is cooperating defense wiring, NOT an autonomous model swarm yet. Reviewers
+accept only explicit local mocks; no live council adapter/provider is present.
+Native paid execution remains off, no live calls were made, and the historic
+unexpected-run cause remains unresolved. Model decisions would still be fallible
+advisory vetoes, not guaranteed threat detection or host-wide protection.

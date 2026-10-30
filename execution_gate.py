@@ -34,10 +34,11 @@ class Manifest:
     context_bytes: int
     warning_hash: str
     retries: int = 0
+    all_role_requests: int = 3
 
     @classmethod
     def build(cls, source, task, *, endpoint, model, tools, image, command,
-              requests=3, completion_tokens=1600, context_bytes=32768, warning):
+              requests=3, completion_tokens=1600, context_bytes=32768, all_role_requests=3, warning):
         if (type(requests) is not int or not 1 <= requests <= 3 or
             type(completion_tokens) is not int or not 1 <= completion_tokens <= 1600 or
             type(context_bytes) is not int or not 1 <= context_bytes <= 32768):
@@ -47,13 +48,14 @@ class Manifest:
         if not command or not all(isinstance(v,str) for v in command):
             raise ValueError('Fixed worker command required')
         return cls(binding(source,task),endpoint,model,digest(tools),image,tuple(command),
-                   requests,completion_tokens,context_bytes,digest(warning))
+                   requests,completion_tokens,context_bytes,digest(warning),all_role_requests=all_role_requests)
 
     def fingerprint(self):
         if (type(self.requests) is not int or not 1 <= self.requests <= 3 or
             type(self.completion_tokens) is not int or not 1 <= self.completion_tokens <= 1600 or
             type(self.context_bytes) is not int or not 1 <= self.context_bytes <= 32768 or
-            self.retries != 0 or type(self.command) is not tuple):
+            self.retries != 0 or type(self.command) is not tuple or
+            type(self.all_role_requests) is not int or not self.requests <= self.all_role_requests <= 12):
             raise ValueError('Invalid manifest limits or command')
         return digest(self.__dict__)
 
@@ -74,6 +76,7 @@ class Coordinator:
         self.path.chmod(0o600)
         with self.db() as db:
             db.execute('CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, manifest TEXT NOT NULL, state TEXT NOT NULL, created REAL NOT NULL, expires REAL NOT NULL, updated REAL NOT NULL, requests INTEGER NOT NULL DEFAULT 0)')
+            db.execute('CREATE TABLE IF NOT EXISTS reservations (id TEXT NOT NULL, role TEXT NOT NULL, requests INTEGER NOT NULL, PRIMARY KEY(id,role))')
             # Pending permission never survives restart; claimed work never retries.
             db.execute("UPDATE runs SET state='invalidated',updated=? WHERE state IN ('reviewed','approved')",(clock(),))
         self.path.chmod(0o600)
@@ -134,14 +137,20 @@ class Coordinator:
             self.claims[claim.run_id]=claim
             return claim
 
-    def reserve_dry_request(self, claim, manifest, *, context_bytes):
+    def reserve_dry_request(self, claim, manifest, *, context_bytes, role='task'):
         with self.lock:
             if self.claims.get(claim.run_id) is not claim:raise PermissionError('Unknown claim')
+            if role not in ('task','goal_integrity','data_safety','analyst'):raise PermissionError('Unknown role')
             if type(context_bytes) is not int or not 0 <= context_bytes <= manifest.context_bytes:
                 raise PermissionError('Context limit exceeded')
             with self.db() as db:
-                changed=db.execute("UPDATE runs SET requests=requests+1,updated=? WHERE id=? AND manifest=? AND state='claimed' AND expires>? AND requests<?",(self.clock(),claim.run_id,manifest.fingerprint(),self.clock(),manifest.requests)).rowcount
-            if changed!=1:raise PermissionError('Run expired, exhausted or changed')
+                db.execute('BEGIN IMMEDIATE')
+                used=db.execute('SELECT requests FROM reservations WHERE id=? AND role=?',(claim.run_id,role)).fetchone()
+                cap=manifest.requests if role=='task' else (1 if role=='analyst' else 4)
+                if used and used[0]>=cap:raise PermissionError('Role request limit reached')
+                changed=db.execute("UPDATE runs SET requests=requests+1,updated=? WHERE id=? AND manifest=? AND state='claimed' AND expires>? AND requests<?",(self.clock(),claim.run_id,manifest.fingerprint(),self.clock(),manifest.all_role_requests)).rowcount
+                if changed!=1:raise PermissionError('Run expired, exhausted or changed')
+                db.execute('INSERT INTO reservations(id,role,requests) VALUES (?,?,1) ON CONFLICT(id,role) DO UPDATE SET requests=requests+1',(claim.run_id,role))
 
     def dispatch_dry(self, ticket, manifest, callback):
         claim=self.claim_dry(ticket,manifest) # committed before any callback

@@ -44,7 +44,7 @@ def plan_source(source,goal):
     if not isinstance(goal,str) or not goal.strip() or len(goal.encode())>2048:
         raise ValueError('Write a goal from 1 to 2048 UTF-8 bytes')
     if '\x00' in goal or SECRET_CONTENT.search(goal):raise ValueError('Possible credential in goal; remove it')
-    manifest=Manifest.build(source,goal,endpoint=BASE_URL,model=MODEL,tools=TOOLS,image=VERIFIED_IMAGE,command=RELAY,warning=WARNING)
+    manifest=Manifest.build(source,goal,endpoint=BASE_URL,model=MODEL,tools=TOOLS,image=VERIFIED_IMAGE,command=RELAY,all_role_requests=12,warning=WARNING)
     return Plan(MappingProxyType(source),goal,manifest)
 
 
@@ -52,7 +52,7 @@ def execute_native(*args,**kwargs):
     raise PermissionError('Protected task execution is paused. Review cannot authorize provider disclosure or spending.')
 
 
-def run_mock(plan,coordinator,ticket,*,client):
+def run_mock(plan,coordinator,ticket,*,client,reviewers=None):
     """Explicit local mock client only. No production provider adapter is accepted."""
     from unittest.mock import Mock
     if not isinstance(client,Mock):raise PermissionError('Only a local mock client is supported while execution is paused')
@@ -65,9 +65,13 @@ def run_mock(plan,coordinator,ticket,*,client):
                 if isinstance(request,dict) and request.get('tool')=='model_next':
                     coordinator.reserve_dry_request(claim,plan.manifest,context_bytes=len(json.dumps(self.messages).encode()))
                 return super().request(request,broker)
+        council=None
+        if reviewers is not None:
+            from defense_council import DefenseCouncil
+            council=DefenseCouncil(plan.goal,reviewers,reserve=lambda role,size: coordinator.reserve_dry_request(claim,plan.manifest,context_bytes=size,role=role))
         session=BudgetSession(plan.goal,list(plan.source),authorized=True,client=client)
-        result=Guard(plan.manifest.image).run(dict(plan.source),list(plan.manifest.command),seconds=90,model_session=session)
-        result.update(model_finished=session.finished,model_requests=session.turns,mocked_model=True,paid_authority=False)
+        result=Guard(plan.manifest.image).run(dict(plan.source),list(plan.manifest.command),seconds=90,model_session=session,defense_council=council)
+        result.update(defense_reviews=council.events if council else [],model_finished=session.finished,model_requests=session.turns,mocked_model=True,paid_authority=False)
         return result
     return coordinator.dispatch_dry(ticket,plan.manifest,operation)
 
