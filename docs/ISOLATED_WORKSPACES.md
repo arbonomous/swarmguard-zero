@@ -454,3 +454,40 @@ accept only explicit local mocks; no live council adapter/provider is present.
 Native paid execution remains off, no live calls were made, and the historic
 unexpected-run cause remains unresolved. Model decisions would still be fallible
 advisory vetoes, not guaranteed threat detection or host-wide protection.
+
+
+### Disabled provider-shaped cooperation adapter
+
+`provider_bridge.py` prepares task and defender prompts/request schemas on one
+claimed run. `LIVE_PROVIDER_ENABLED=False` refuses before key/client/network
+access. Even changing that flag cannot construct a real client: key loading and
+live transport creation are absent. Only explicit local mock transport can run.
+Native dispatch is still disabled. This is prepared connection code, not a live
+AI swarm. No new AppKit layout change is included in this revision.
+
+`run_prepared_mock` connects task-model proposals -> actual Broker hard policy ->
+two defender adapters -> exact effect or automatic policy stop, under the same
+Guard. Every adapter request reserves the shared durable budget before transport.
+Task tools must match the manifest hash; defenders have no tools and use strict
+JSON review schema. Defender responses with tool calls, malformed JSON, excessive
+size or incomplete finish fail closed. Errors stop the bridge with no retry.
+A future real client must explicitly disable SDK retries; no client exists here.
+
+Concrete protected plan upper bounds: twelve requests shared across all roles,
+task <=3 at1600 completion tokens each, goal-integrity <=4 and data-safety <=4
+at400 completion tokens each; no analyst calls. Those implemented role maxima
+sum to eleven possible calls, within the twelve shared cap. Maximum completion
+allowance across these roles is8000 tokens. Each request's JSON messages+tools
+must fit32768 UTF-8 bytes. Context bytes are NOT an input-token or dollar cap;
+provider input billing still applies. Requests use10-second timeout; council
+wait is12 seconds; Guard runtime is90 seconds. Unknown/error means stop, not
+repeat. Actual provider acceptance of schemas/limits is unverified.
+
+Future disclosure includes exact selected source and goal, proposed actions,
+candidate output and bounded tool history to the configured provider/model for
+task and both defenders. Credits can spill to card; this adapter grants neither
+spending nor disclosure. Existing approvals are not reusable. Private IPC dry
+handoff exists separately; there is no production claimed-run handoff to this
+adapter, no live key loading and no paid UI route. Those remain blockers before
+any native paid validation, in addition to real Mac/OrbStack/UI verification and
+the unresolved historic unexpected-run investigation.

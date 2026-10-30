@@ -13,9 +13,10 @@ ROLES=('goal_integrity','data_safety')
 class DefenseCouncil:
     def __init__(self, goal, reviewers, *, reserve, timeout=1):
         from unittest.mock import Mock
-        if set(reviewers)!=set(ROLES) or not all(isinstance(v,Mock) for v in reviewers.values()):
+        from provider_bridge import DefenderAdapter
+        if set(reviewers)!=set(ROLES) or not all(isinstance(v,Mock) or type(v) is DefenderAdapter for v in reviewers.values()):
             raise PermissionError('Only explicit local mock defenders are supported')
-        if not 0<timeout<=5:raise ValueError('Bounded review timeout required')
+        if not 0<timeout<=15:raise ValueError('Bounded review timeout required')
         self.goal=goal;self.reviewers=dict(reviewers);self.reserve=reserve;self.timeout=timeout
         self.events=[];self.stopped=False
 

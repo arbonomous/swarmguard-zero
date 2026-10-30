@@ -91,3 +91,22 @@ def export_review(result):
     if result.get('stopped') is not True or result.get('removed') is not True:
         raise PermissionError('Cleanup unverified; output export is withheld')
     return make_archive(result.get('artifacts',{}))
+
+
+def run_prepared_mock(plan,coordinator,ticket,*,client):
+    """Whole cooperating path using production-shaped adapters and mock transport."""
+    from provider_bridge import ProviderBridge
+    from defense_council import DefenseCouncil,ROLES
+    from managed_guard import Guard
+    checked=plan_source(plan.source,plan.goal)
+    if checked.manifest!=plan.manifest:raise PermissionError('Changed protected task plan')
+    def operation(claim):
+        bridge=ProviderBridge(coordinator,claim,plan.manifest,client=client,mock_only=True)
+        # Adapter reserves after full defender prompt is built, not twice here.
+        council=DefenseCouncil(plan.goal,{r:bridge.defender(r) for r in ROLES},reserve=lambda role,size:None,timeout=12)
+        session=ModelSession(plan.goal,list(plan.source),authorized=True,client=bridge.task_client())
+        result=Guard(plan.manifest.image).run(dict(plan.source),list(plan.manifest.command),seconds=90,model_session=session,defense_council=council)
+        result.update(defense_reviews=council.events,model_finished=session.finished,model_requests=session.turns,
+                      mocked_model=True,paid_authority=False,all_role_usage=bridge.usage)
+        return result
+    return coordinator.dispatch_dry(ticket,plan.manifest,operation)
