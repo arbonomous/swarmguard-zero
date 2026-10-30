@@ -1,0 +1,56 @@
+import json,tempfile,unittest
+from pathlib import Path
+from types import SimpleNamespace as S
+from unittest.mock import Mock,patch
+from execution_gate import Coordinator
+from native_task_flow import StartFlow,prepare,SingleArtifactSession
+
+class NativeTaskFlowTests(unittest.TestCase):
+    def gate(self,tmp):return Coordinator(Path(tmp)/'audit.db')
+    def test_review_close_changed_replay_never_launch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            flow=StartFlow(self.gate(tmp));client=Mock()
+            with patch('native_task_flow.execute') as run:
+                text=flow.review({'x.txt':b'public notes'},'Checklist')
+                self.assertIn('NOTHING STARTED',text);run.assert_not_called()
+                with self.assertRaises(PermissionError):flow.start({'x.txt':b'public notes'},'Changed',explicit_start=True,client=client)
+                run.assert_not_called()
+                flow.review({'x.txt':b'public notes'},'Checklist');flow.invalidate()
+                with self.assertRaises(PermissionError):flow.start({'x.txt':b'public notes'},'Checklist',explicit_start=True,client=client)
+                flow.review({'x.txt':b'public notes'},'Checklist')
+                flow.start({'x.txt':b'public notes'},'Checklist',explicit_start=True,client=client)
+                run.assert_called_once()
+                with self.assertRaises(PermissionError):flow.start({'x.txt':b'public notes'},'Checklist',explicit_start=True,client=client)
+                self.assertEqual(run.call_count,1)
+    def test_live_release_refused_before_execution(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            flow=StartFlow(self.gate(tmp));flow.review({'x.txt':b'public'},'Checklist')
+            with patch('native_task_flow.execute') as run,self.assertRaises(PermissionError):flow.start({'x.txt':b'public'},'Checklist',explicit_start=True)
+            run.assert_not_called()
+    def test_actual_task_proposal_both_defenders_then_finish(self):
+        from native_task_flow import execute
+        from managed_guard import Broker
+        with tempfile.TemporaryDirectory() as tmp:
+            gate=self.gate(tmp);flow=StartFlow(gate);source={'x.txt':b'public notes'};goal='Make a checklist'
+            flow.review(source,goal);client=Mock()
+            def respond(**kw):
+                if 'tools' in kw:return S(usage=None,choices=[S(finish_reason='tool_calls',message=S(tool_calls=[S(function=S(name='write_artifact',arguments='{"path":"checklist.md","text":"- Review notes"}'))]))])
+                p=json.loads(kw['messages'][1]['content']);c=p['untrusted_context']
+                return S(usage=None,choices=[S(finish_reason='stop',message=S(tool_calls=[],content=json.dumps({'role':p['reviewer_role'],'action_hash':c['action_hash'],'decision':'allow','reason':'Matches goal','evidence':'Review notes'})))])
+            client.chat.completions.create.side_effect=respond
+            def guard(_self,source,command,**kw):
+                broker=Broker(source,defense_council=kw['defense_council']);session=kw['model_session']
+                action=session.request({'id':0,'tool':'model_next','arguments':{}},broker)
+                self.assertEqual(broker.artifacts,{})
+                session.request(action,broker)
+                self.assertEqual(client.chat.completions.create.call_count,3)
+                self.assertEqual(session.request({'id':0,'tool':'model_next','arguments':{}},broker),{'finished':True})
+                return dict(artifacts=broker.artifacts,denied=False,stopped=True,removed=True,failure=None)
+            with patch('managed_guard.Guard.run',new=guard):result=flow.start(source,goal,explicit_start=True,client=client)
+            self.assertTrue(result['export_permitted']);self.assertEqual(gate.audit()[-1]['requests'],3)
+            self.assertTrue(result['artifacts']);self.assertFalse(result['native_paid_enabled'])
+    def test_bounds_and_denied_export(self):
+        from protected_task import export_review
+        self.assertEqual(prepare({'x.txt':b'public'},'Goal').manifest.all_role_requests,3)
+        with self.assertRaises(ValueError):prepare({'x.txt':b'x'*1025},'Goal')
+        with self.assertRaises(PermissionError):export_review(dict(export_permitted=False,stopped=True,removed=True,artifacts={'x.txt':b'no'}))

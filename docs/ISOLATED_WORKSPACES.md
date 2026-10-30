@@ -621,3 +621,28 @@ whole-Mac protection, arbitrary-agent protection, or a general defense guarantee
 Local tests use a real protocol subprocess with mocked Docker lifecycle and mocked
 provider responses. They cannot certify the actual Mac/OrbStack/provider result.
 Only the coordinated explicit checkpoint can supply that evidence.
+
+## Native purposeful-task preparation, not a released paid flow
+
+`native_task_flow.py` prepares selected-copy work with a real goal. It uses one task
+proposal, requires both same defenders before the artifact effect, and finishes
+without another task request. The fixed relay and Guard retain the owned-worker
+boundary. Bounds: source at most1 KiB, goal512 bytes, one task plus two defender
+requests,1600 completion per request including reasoning, low effort,4096-byte
+request JSON and no retries. Oversized combined context refuses rather than
+silently truncating source or widening limits. No project file writes occur.
+
+A separate one-use StartFlow binds an immutable reviewed snapshot. Changed inputs,
+close/invalidate, expiry and replay cannot start it. Review does not consume Start.
+The native panel shows a distinct disabled Start control, not a modal approval.
+Both `NATIVE_LIVE_RELEASED=False` and the execution transport guard prevent live
+use. Only explicit mock transport can exercise this prepared backend. The actual
+native button remains inert, not connected to the backend. It must not be enabled
+by flipping one flag. A release still needs source/disclosure authority, scoped
+host transport, native review/Start wiring, progress/cleanup UX and actual Mac
+pixel/event validation. No release, selected-file disclosure permission, or fix to
+the historical unexpected native launch is claimed by this preparation.
+
+Denied, unfinished, failed or cleanup-uncertain runs cannot export prepared native
+artifacts. Successful output is still untrusted and review-only, with manual export
+to a new archive. Existing fixed headless checks remain distinct from this flow.

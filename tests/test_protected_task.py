@@ -56,12 +56,13 @@ class ProtectedTaskTests(unittest.TestCase):
         import ast,native_workspace
         tree=ast.parse(Path(native_workspace.__file__).read_text())
         node=next(n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef) and n.name=='runClicked_')
-        scope={};exec(compile(ast.Module(body=[node],type_ignores=[]),'<protected review handler>','exec'),scope)
+        scope={'Path':Path};exec(compile(ast.Module(body=[node],type_ignores=[]),'<protected review handler>','exec'),scope)
         with tempfile.TemporaryDirectory() as tmp:
             path=Path(tmp)/'notes.txt';path.write_text('Useful project note')
-            controller=Mock();controller.busy=False;controller.mode='Protected task';controller.paths=[str(path)]
+            controller=Mock();controller.busy=False;controller.mode='Protected task';controller.paths=[str(path)];controller.protected_flow=None
             controller.command.stringValue.return_value='Make a checklist'
-            scope['runClicked_'](controller,None)
+            with patch('pathlib.Path.home',return_value=Path(tmp)):
+                scope['runClicked_'](controller,None)
             controller.showError_.assert_not_called();controller.startWorker_.assert_not_called()
             self.assertIn('Make a checklist',controller.results.setString_.call_args.args[0])
             self.assertIn('NOTHING STARTED',controller.results.setString_.call_args.args[0])

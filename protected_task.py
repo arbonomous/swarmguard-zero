@@ -88,7 +88,7 @@ def result_view(result):
 
 
 def export_review(result):
-    if result.get('stopped') is not True or result.get('removed') is not True:
+    if result.get('export_permitted') is False or result.get('stopped') is not True or result.get('removed') is not True:
         raise PermissionError('Cleanup unverified; output export is withheld')
     return make_archive(result.get('artifacts',{}))
 

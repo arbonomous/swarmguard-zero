@@ -125,6 +125,7 @@ def _build():
             self.execution_gate = None
             self.execution_ticket = None
             self.protected_plan = None
+            self.protected_flow = None
             self.visual_panel = None
             content = self.panel.contentView()
             def label(text, y, height=36):
@@ -177,6 +178,8 @@ def _build():
             self.run_button = button('Review and run copies', 'runClicked:', 18, 291, 265)
             self.save_button = button('Save outputs for review...', 'saveClicked:', 300, 291, 270)
             self.save_button.setEnabled_(False)
+            self.protected_start = button('Start task - not released', 'protectedStartClicked:', 300, 291, 270)
+            self.protected_start.setEnabled_(False)
             self.workspace_views = list(content.subviews())[before_workspace:]
             for view in self.workspace_views:
                 frame = view.frame()
@@ -206,6 +209,9 @@ def _build():
         def sectionChanged_(self, _sender):
             if self.busy:
                 return
+            if self.protected_flow is not None:
+                self.protected_flow.invalidate()
+            self.protected_plan = None
             self.mode = str(self.sections.titleOfSelectedItem())
             compact = self.mode in ('Status', 'Safety check', 'AI task')
             self.panel.setContentSize_((590, 480 if self.mode == 'AI task' else (440 if compact else 660)))
@@ -232,6 +238,9 @@ def _build():
             if self.mode == 'Safety check':
                 self.results.setString_(check_summary(getattr(self, 'last_check', 'Not checked yet.\n\nTest a scripted workload: allow a safe task, block a forbidden request, then stop and remove its container.\n\nNo private files, network or AI credits. Not an intelligent AI agent.')));return
             if workspace:
+                self.save_button.setHidden_(protected)
+                self.protected_start.setHidden_(not protected)
+                self.protected_start.setEnabled_(False)
                 self.exports_label.setHidden_(protected)
                 self.workspace_scope.setStringValue_('Local plan only. Execution paused; nothing sent to a provider.\nOther agents and the rest of your Mac are not protected.' if protected else 'Offline copied files only. No host mounts, keys, downloads or cloud agents.\nAgents running elsewhere are not protected.')
                 self.workspace_limits.setStringValue_('8 KiB total source; 2048-byte goal. Outputs stay review-only.\nSecret detection is limited. Never select private documents or keys.' if protected else '1 MiB/file, 4 MiB total. Hidden/credential-like paths refused.\nSecret detection is not exhaustive. Never choose private documents or keys.')
@@ -318,6 +327,8 @@ def _build():
         def chooseClicked_(self, _sender):
             if self.busy:
                 return
+            if self.protected_flow is not None:self.protected_flow.invalidate()
+            self.protected_plan = None
             chooser = NSOpenPanel.openPanel()
             chooser.setCanChooseDirectories_(False);chooser.setCanChooseFiles_(True)
             chooser.setAllowsMultipleSelection_(True)
@@ -491,15 +502,24 @@ def _build():
                 return '\n'.join(lines), None
             self.startWorker_(operation, kind='check')
 
+        def protectedStartClicked_(self, _sender):
+            if self.protected_flow is not None:self.protected_flow.invalidate()
+            self.protected_plan = None
+            self.showError_('Native live Start is not released. Review cannot start a paid task.')
+
         def runClicked_(self, _sender):
             if self.busy:
                 return
             if self.mode == 'Protected task':
                 try:
                     from protected_task import plan_files
+                    from native_task_flow import StartFlow
+                    from execution_gate import Coordinator
                     self.protected_plan = plan_files(self.paths, str(self.command.stringValue()))
-                    self.results.setString_(self.protected_plan.preview())
-                    self.headline.setStringValue_('Plan reviewed locally. Execution paused; nothing sent.')
+                    if self.protected_flow is None:
+                        self.protected_flow = StartFlow(Coordinator(Path.home() / 'Library' / 'Application Support' / 'SwarmGuard' / 'native-task-preparation.sqlite3'))
+                    self.results.setString_(self.protected_flow.review(self.protected_plan.source,self.protected_plan.goal))
+                    self.headline.setStringValue_('Reviewed locally. Live Start not released; nothing sent.')
                 except Exception as exc:
                     self.protected_plan = None
                     self.showError_(str(exc))
@@ -539,6 +559,8 @@ def _build():
                     self.showError_('Save refused (' + type(exc).__name__ + '). Choose a new filename. No existing file overwritten.')
 
         def windowShouldClose_(self, _sender):
+            if self.protected_flow is not None:self.protected_flow.invalidate()
+            self.protected_plan = None
             self.panel.orderOut_(None)
             return False
 
