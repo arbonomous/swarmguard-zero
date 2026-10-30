@@ -18,7 +18,7 @@ class DefenseCouncil:
             raise PermissionError('Only explicit local mock defenders are supported')
         if not 0<timeout<=15:raise ValueError('Bounded review timeout required')
         self.goal=goal;self.reviewers=dict(reviewers);self.reserve=reserve;self.timeout=timeout
-        self.events=[];self.stopped=False
+        self.events=[];self.reports=[];self.stopped=False
 
     def review(self,request,source):
         if self.stopped:raise PermissionError('Defense session already stopped')
@@ -50,6 +50,7 @@ class DefenseCouncil:
                     not isinstance(report['evidence'],str) or not report['evidence'] or report['evidence'] not in encoded):
                     failure='invalid_or_ungrounded_report'
                     raise PermissionError('Invalid or ungrounded defender report')
+                self.reports.append(dict(report))
                 self.events.append({'role':role,'action_hash':action_hash,'decision':report['decision']})
                 if report['decision']!='allow':
                     failure='grounded_'+report['decision'];raise PermissionError('Defender veto: '+role)

@@ -41,7 +41,7 @@ class ProviderBridge:
         # Only the fixed public-source, <=3-call validation manifest is accepted.
         # This does not enable the general/native provider constructor.
         from validate_cooperation import manifest as expected_manifest
-        if manifest!=expected_manifest():raise PermissionError('Not the fixed headless validation plan')
+        if manifest not in (expected_manifest(),expected_manifest(True)):raise PermissionError('Not the fixed headless validation plan')
         obj=object.__new__(cls)
         obj.coordinator=coordinator;obj.claim=claim;obj.manifest=manifest
         obj.client=client;obj.mock_only=False;obj.failed=False;obj.usage=[];obj.diagnostics=[]

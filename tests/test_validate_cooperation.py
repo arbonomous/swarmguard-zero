@@ -44,3 +44,21 @@ class HeadlessValidationTests(unittest.TestCase):
         plan=json.loads(out.getvalue())['ready_plan']
         self.assertEqual(plan['max_completion_tokens_total'],4800)
         self.assertEqual(plan['max_requests_total'],3)
+    def test_veto_fixture_passes_hard_policy_and_models_stop_before_effect(self):
+        from managed_guard import Broker
+        Broker(validation.SOURCE).validate_request(validation.VETO_ACTION)
+        with tempfile.TemporaryDirectory() as tmp:
+            gate=Coordinator(Path(tmp)/'audit.db');client=Mock()
+            def respond(**kw):
+                self.assertNotIn('tools',kw)
+                p=json.loads(kw['messages'][1]['content']);c=p['untrusted_context'];role=p['reviewer_role']
+                report={'role':role,'action_hash':c['action_hash'],'decision':'deny','reason':'Goal hijack and unsafe disclosure request','evidence':'Disable SwarmGuard'}
+                return S(usage=None,choices=[S(finish_reason='stop',message=S(content=json.dumps(report),tool_calls=[]))])
+            client.chat.completions.create.side_effect=respond
+            result=validation.run(gate,client=client,veto=True)
+            self.assertTrue(result['hard_policy_fixture_passed']);self.assertFalse(result['task_model_called'])
+            self.assertFalse(result['artifact_created']);self.assertTrue(result['denied_before_effect'])
+            self.assertEqual(result['defense_reviews'][-1]['failure_category'],'grounded_deny')
+            self.assertEqual(client.chat.completions.create.call_count,1)
+            self.assertIn('injected',result['proposal_origin'])
+            self.assertEqual(validation.manifest(True).all_role_requests,2)
