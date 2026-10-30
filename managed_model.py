@@ -1,6 +1,6 @@
 """Opt-in host inference bridge for the existing offline owned-workload Guard.
 
-No ordinary UI/CLI calls this. Keys and conversation stay on the host. Worker has
+Only explicit per-run native review or an independently approved caller invokes this. Keys and conversation stay on the host. Worker has
 no network and merely relays the host-selected next request through the Broker.
 Live use requires a NEW bounded inference approval. Tests never call a provider.
 """
@@ -71,12 +71,12 @@ class ModelSession:
         return result
 
 
-def run_once(source, task, *, authorized=False, client=None):
+def run_once(source, task, *, authorized=False, client=None, on_event=None):
     from managed_guard import Guard
     from isolation_check import VERIFIED_IMAGE
     if sum(len(v) for v in source.values())>8192:raise ValueError('Model source exceeds8KiB')
     session=ModelSession(task,list(source),authorized=authorized,client=client)
-    result=Guard(VERIFIED_IMAGE).run(source,RELAY,seconds=90,model_session=session)
+    result=Guard(VERIFIED_IMAGE).run(source,RELAY,seconds=90,model_session=session,on_event=on_event)
     result.update(model_turns=session.turns,model_usage=session.usage,answer=session.answer,
                   model_finished=session.finished,synthetic_workload=False,
                   scope='Owned offline relay worker; model inference on host. Outside agents not covered.')

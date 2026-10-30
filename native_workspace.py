@@ -118,7 +118,7 @@ def _build():
                 field = NSTextField.alloc().initWithFrame_(NSMakeRect(18, y, 554, 28))
                 field.setStringValue_(text);content.addSubview_(field);return field
             self.sections = NSPopUpButton.alloc().initWithFrame_pullsDown_(NSMakeRect(18, 540, 330, 28), False)
-            self.sections.addItemsWithTitles_(['Status', 'Attack catalog', 'Policy checks', 'Activity and evidence', 'Latest analysis', 'Safety check', 'Workspace', 'About'])
+            self.sections.addItemsWithTitles_(['Status', 'Attack catalog', 'Policy checks', 'Activity and evidence', 'Latest analysis', 'Safety check', 'AI task', 'Workspace', 'About'])
             self.sections.setTarget_(self);self.sections.setAction_('sectionChanged:');content.addSubview_(self.sections)
             self.details_button = button('Show details', 'detailsClicked:', 365, 540, 205)
             mark = NSImage.alloc().initWithContentsOfFile_(str(Path(__file__).resolve().parent / 'assets' / 'brand' / 'swarmguard-mark.png'))
@@ -179,22 +179,25 @@ def _build():
             if self.busy:
                 return
             self.mode = str(self.sections.titleOfSelectedItem())
-            compact = self.mode in ('Status', 'Safety check')
+            compact = self.mode in ('Status', 'Safety check', 'AI task')
             self.panel.setContentSize_((590, 440 if compact else 660))
             for view, frame in self.base_frames:
                 if view not in (self.scroll, self.footer, self.copy_button):
                     view.setFrameOrigin_((frame.origin.x, frame.origin.y - (220 if compact else 0)))
             self.details_button.setTitle_('Show details')
+            self.home_button.setTitle_('Review AI task...' if self.mode == 'AI task' else 'Test managed guard')
             self.showing_check_details = False
             workspace = self.mode == 'Workspace'
             for view in self.workspace_views:
                 view.setHidden_(not workspace)
             for view in self.top_views:
                 view.setHidden_(workspace)
-            details = self.mode not in ('Status', 'Safety check', 'Workspace')
+            details = self.mode not in ('Status', 'Safety check', 'AI task', 'Workspace')
             for view in self.top_views:
                 view.setHidden_(not details)
             self.scroll.setFrame_(NSMakeRect(18, 48, 554, 120 if workspace else (350 if details else 250)))
+            if self.mode == 'AI task':
+                self.results.setString_(check_summary(getattr(self, 'last_model', 'Ready for a reviewed AI task.\n\nBuilt-in made-up sales data contains a fake malicious instruction. A real Meta model calculates totals using only allowed tools.\n\nReview every run before spending credits. Opening this view makes no model request.\n\nThe model/key stay on your Mac; only an offline relay runs in OrbStack. Other agents are not covered.')));return
             if self.mode == 'Safety check':
                 self.results.setString_(check_summary(getattr(self, 'last_check', 'Not checked yet.\n\nTest a scripted workload: allow a safe task, block a forbidden request, then stop and remove its container.\n\nNo private files, network or AI credits. Not an intelligent AI agent.')));return
             if workspace:
@@ -208,9 +211,9 @@ def _build():
         def detailsClicked_(self, _sender):
             if self.busy:
                 return
-            if self.mode == 'Safety check':
+            if self.mode in ('Safety check', 'AI task'):
                 self.showing_check_details = not self.showing_check_details
-                text = getattr(self, 'last_check', 'No test result yet.')
+                text = getattr(self, 'last_model' if self.mode == 'AI task' else 'last_check', 'No test result yet.')
                 self.results.setString_(text if self.showing_check_details else check_summary(text))
                 self.details_button.setTitle_('Hide details' if self.showing_check_details else 'Show details')
             else:
@@ -309,8 +312,8 @@ def _build():
             self.operation_kind = kind
             self.setBusy_(True)
             self.download = None
-            self.headline.setStringValue_('Checking... please wait for the result and cleanup.')
-            self.results.setString_('Running the approved synthetic AI demo. This can use API credits. Keep SwarmGuard open.' if kind == 'demo' else 'Running in a disposable offline workspace.\nSupervising the owned workload, applying policy, then verifying cleanup.\n\nKeep SwarmGuard open. No network or AI credits are used by offline checks.')
+            self.headline.setStringValue_('Starting one approved AI task...' if kind == 'model' else 'Checking... please wait for the result and cleanup.')
+            self.results.setString_('Running ONE approved Meta task. Synthetic input, real model. Keep SwarmGuard open through cleanup. No automatic retry.' if kind == 'model' else 'Running the approved synthetic AI demo. This can use API credits. Keep SwarmGuard open.' if kind == 'demo' else 'Running in a disposable offline workspace.\nSupervising the owned workload, applying policy, then verifying cleanup.\n\nKeep SwarmGuard open. No network or AI credits are used by offline checks.')
             def worker():
                 try:
                     message, download = operation()
@@ -322,7 +325,11 @@ def _build():
             threading.Thread(target=worker, daemon=True).start()
 
         def finished_(self, message):
-            self.results.setString_(check_summary(str(message)) if self.operation_kind == 'check' else str(message))
+            self.results.setString_(check_summary(str(message)) if self.operation_kind in ('check', 'model') else str(message))
+            if self.operation_kind == 'model':
+                self.last_model = str(message)
+                self.showing_check_details = False
+                self.details_button.setTitle_('Show details')
             if self.operation_kind == 'check':
                 self.last_check = str(message)
                 self.showing_check_details = False
@@ -330,9 +337,59 @@ def _build():
             self.headline.setStringValue_('Finished. Review the result below before continuing.')
             self.setBusy_(False)
 
+        def modelProgress_(self, text):
+            if self.busy and self.operation_kind == 'model':
+                self.headline.setStringValue_(str(text).split('\n')[0])
+                self.results.setString_(str(self.results.string()) + '\n' + str(text))
+
+        def modelClicked_(self, _sender):
+            if self.busy:
+                return
+            from native_model_task import invoke, summarize, REVIEW
+            root = Path(__file__).resolve().parent
+            try:
+                readiness = invoke(root)
+                if readiness.get('ready') is not True:
+                    self.showError_(summarize(readiness));return
+            except Exception:
+                self.showError_('Preflight unavailable. No model request made. Check the existing project .venv.');return
+            review = NSAlert.alloc().init()
+            review.setMessageText_('Approve ONE live AI task and its billing risk?')
+            review.setInformativeText_('Real Meta requests can charge your card after promo credits. No hard spending cap. Read the scope and synthetic source below. Cancel makes no request.')
+            review_scroll = NSScrollView.alloc().initWithFrame_(NSMakeRect(0, 0, 490, 240))
+            review_scroll.setHasVerticalScroller_(True)
+            review_text = NSTextView.alloc().initWithFrame_(NSMakeRect(0, 0, 470, 240))
+            review_text.setEditable_(False);review_text.setSelectable_(True)
+            review_text.setString_(REVIEW)
+            review_text.setVerticallyResizable_(True)
+            review_text.setHorizontallyResizable_(False)
+            review_text.textContainer().setWidthTracksTextView_(True)
+            review_scroll.setDocumentView_(review_text)
+            review.setAccessoryView_(review_scroll)
+            # Safe default, including Return/Escape: cancel. Approval is the second button.
+            review.addButtonWithTitle_('Cancel')
+            review.addButtonWithTitle_('Approve one paid run')
+            if review.runModal() != NSAlertFirstButtonReturn + 1:
+                return
+            def operation():
+                def progress(event):
+                    labels = {'started': 'Worker started in OrbStack.',
+                              'model_step': 'Model step completed; applying allowed tools.',
+                              'allowed': 'Allowed tool completed.',
+                              'denied': 'Request denied. Stopping this worker.',
+                              'stopped': 'Worker stopped. Checking removal.',
+                              'removed': 'Worker removed.' if event.get('verified') else 'Removal not verified.'}
+                    text = labels.get(event.get('kind'), 'Checking task state.')
+                    if event.get('name'):text += '\n' + event['name']
+                    self.performSelectorOnMainThread_withObject_waitUntilDone_('modelProgress:', text, False)
+                return summarize(invoke(root, approved=True, on_event=progress)), None
+            self.startWorker_(operation, kind='model')
+
         def guardClicked_(self, _sender):
             if self.busy:
                 return
+            if self.mode == 'AI task':
+                self.modelClicked_(None);return
             self.sections.selectItemWithTitle_('Safety check')
             self.sectionChanged_(None)
             def operation():

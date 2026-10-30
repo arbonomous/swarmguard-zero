@@ -80,6 +80,7 @@ class Guard:
             attached=subprocess.Popen(['docker','--context',runner.CONTEXT,'start','--attach','--interactive',name],
                 stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=env)
             self.record('started',name=name,scope='owned offline workload only')
+            if on_event:on_event(self.events[-1])
             streams=selectors.DefaultSelector()
             streams.register(attached.stdout,selectors.EVENT_READ,'stdout')
             streams.register(attached.stderr,selectors.EVENT_READ,'stderr')
@@ -148,6 +149,7 @@ class Guard:
                     stopped=not state.get('Running',True)
                     if not stopped:raise RuntimeError('Workload still running')
                     self.record('stopped',verified=True)
+                    if on_event:on_event(self.events[-1])
                 except Exception as exc:
                     self.record('stop_check_failed',error=type(exc).__name__)
                 try:
@@ -155,6 +157,7 @@ class Guard:
                     names=runner.docker('ps','-a','--filter','name=^/'+name+'$','--format','{{.Names}}').stdout.strip()
                     removed=not names
                     self.record('removed',verified=removed)
+                    if on_event:on_event(self.events[-1])
                 except Exception as exc:
                     self.record('cleanup_failed',name=name,error=type(exc).__name__)
             if attached is not None:

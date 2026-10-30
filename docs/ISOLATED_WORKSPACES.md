@@ -259,3 +259,31 @@ not live container/model enforcement. A future live injection check must report
 the model's actual behavior. Ignoring an injected instruction is not evidence
 that an attack tool request was denied. Deterministic enforcement proofs stay
 labeled separately from model-choice observations.
+
+### Native one-run AI task
+
+In the native panel's dropdown, choose **AI task**, then **Review AI task...**.
+Opening this view does not call Meta. The fixed project `.venv/bin/python` checks
+only local dependencies and the existing host-local key. Nothing is installed.
+The approval sheet has Cancel as its default and displays scope, billing risk,
+request/token limits, the exact synthetic sales source and its fake instruction.
+Only **Approve one paid run** launches one task. No review choice is remembered,
+no automatic retries occur, and a failed/missing result must not be rerun blindly.
+
+The key and provider connection stay on the host. A fixed offline OrbStack relay
+is created per task, not a persistent protection service. Progress shows worker
+start, model/tool steps, stop and removal. A short task may disappear from OrbStack
+before its list is noticed; verified removal means no container remains.
+
+The normal result separately checks JSON sales totals (20 units, $100), model
+completion, denial and cleanup. A task with no denied request is never presented
+as a blocked attack. A protocol denial alone is not proof of an attack either.
+Show details exposes usage and event evidence; Copy results copies the visible
+review text. Output remains untrusted and is never applied to a project.
+`synthetic_workload=false` describes real model execution, not real input data:
+this native task explicitly records `synthetic_input=true` and
+`synthetic_injection=true`. No private user source is selected or uploaded.
+
+Tests use fake clients/process output only. Actual macOS layout, first-click
+presentation, review scrolling, Cancel and live progress require a Mac checkpoint.
+A live run requires a new one-run approval; earlier run approvals are consumed.
