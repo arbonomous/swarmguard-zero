@@ -27,6 +27,7 @@ class DefenseCouncil:
         encoded=json.dumps(context,sort_keys=True)
         if len(encoded.encode())>32768:
             self.stopped=True;raise PermissionError('Defense context limit exceeded')
+        failure='local_refusal';role=None
         try:
             for role in ROLES:
                 self.reserve(role,len(encoded.encode())) # commit BEFORE any reviewer call
@@ -38,18 +39,22 @@ class DefenseCouncil:
                 # results are discarded; no further callback runs for this council.
                 threading.Thread(target=run,daemon=True).start()
                 try:ok,report=result.get(timeout=self.timeout)
-                except queue.Empty:raise PermissionError('Defender timed out') from None
-                if not ok:raise PermissionError('Defender failed')
+                except queue.Empty:
+                    failure='review_timeout';raise PermissionError('Defender timed out') from None
+                if not ok:
+                    failure='review_callback_failed';raise PermissionError('Defender failed')
                 if (not isinstance(report,dict) or set(report)!={'role','action_hash','decision','reason','evidence'} or
                     report['role']!=role or report['action_hash']!=action_hash or
                     report['decision'] not in ('allow','deny','uncertain') or
                     not isinstance(report['reason'],str) or not 1<=len(report['reason'])<=240 or
                     not isinstance(report['evidence'],str) or not report['evidence'] or report['evidence'] not in encoded):
+                    failure='invalid_or_ungrounded_report'
                     raise PermissionError('Invalid or ungrounded defender report')
                 self.events.append({'role':role,'action_hash':action_hash,'decision':report['decision']})
-                if report['decision']!='allow':raise PermissionError('Defender veto: '+role)
+                if report['decision']!='allow':
+                    failure='grounded_'+report['decision'];raise PermissionError('Defender veto: '+role)
         except BaseException:
             self.stopped=True
-            self.events.append({'action_hash':action_hash,'decision':'stopped_before_effect'})
+            self.events.append({'action_hash':action_hash,'decision':'stopped_before_effect','failure_category':failure,'role':role})
             raise
         return True

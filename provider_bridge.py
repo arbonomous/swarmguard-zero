@@ -35,7 +35,7 @@ class ProviderBridge:
         self.client=client;self.mock_only=mock_only;self.failed=False
         # Real transport will require OpenAI(max_retries=0, timeout=10).
         # No real client can be constructed through this revision.
-        self.usage=[]
+        self.usage=[];self.diagnostics=[]
 
     @classmethod
     def for_headless_validation(cls,coordinator,claim,manifest,*,client):
@@ -45,7 +45,7 @@ class ProviderBridge:
         if manifest!=expected_manifest():raise PermissionError('Not the fixed headless validation plan')
         obj=object.__new__(cls)
         obj.coordinator=coordinator;obj.claim=claim;obj.manifest=manifest
-        obj.client=client;obj.mock_only=False;obj.failed=False;obj.usage=[]
+        obj.client=client;obj.mock_only=False;obj.failed=False;obj.usage=[];obj.diagnostics=[]
         return obj
 
     def request(self,role,messages,*,tools=None):
@@ -66,14 +66,25 @@ class ProviderBridge:
                         timeout=10)
             if role=='task':kwargs.update(tools=tools,tool_choice='auto',parallel_tool_calls=False)
             else:kwargs['response_format']={'type':'json_schema','json_schema':{'name':'defense_review','strict':True,'schema':SCHEMA}}
+            self.diagnostics.append({'role':role,'stage':'request_reserved'})
             response=self.client.chat.completions.create(**kwargs)
-            if len(response.choices)!=1 or getattr(response.choices[0],'finish_reason',None)!='stop' and role!='task':
-                raise PermissionError('Incomplete defender response')
             usage=getattr(response,'usage',None)
             if usage:self.usage.append({'role':role,'usage':usage.model_dump()})
+            finish=getattr(response.choices[0],'finish_reason',None) if len(response.choices)==1 else None
+            self.diagnostics.append({'role':role,'stage':'response_received','finish_reason':finish if finish in ('stop','length','tool_calls','content_filter') else 'other','usage_present':usage is not None})
+            if len(response.choices)!=1 or finish!='stop' and role!='task':
+                raise PermissionError('Incomplete defender response')
             return response
-        except BaseException:
+        except BaseException as exc:
             self.failed=True
+            category=('incomplete_response' if isinstance(exc,PermissionError) and str(exc)=='Incomplete defender response' else
+                      'local_refusal' if isinstance(exc,PermissionError) else
+                      'transport_timeout' if isinstance(exc,TimeoutError) or type(exc).__name__=='APITimeoutError' else
+                      'transport_error')
+            event={'role':role,'stage':'failed','category':category,'error_type':type(exc).__name__}
+            status=getattr(exc,'status_code',None)
+            if type(status) is int:event['http_status']=status
+            self.diagnostics.append(event)
             raise
 
     def task_client(self):
@@ -106,6 +117,7 @@ class DefenderAdapter:
             return json.loads(text)
         except Exception:
             self.bridge.failed=True
+            self.bridge.diagnostics.append({'role':self.role,'stage':'failed','category':'invalid_defender_payload'})
             raise PermissionError('Invalid defender response; run stopped') from None
 
 

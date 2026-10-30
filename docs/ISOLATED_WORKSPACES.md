@@ -522,3 +522,21 @@ credit-use grant is separate from private-source disclosure and card-overage
 permission. Current balance was owner-reported; no documented balance API was
 found in public references. Account billing can be inspected only through an
 already-accessible correct dashboard without secret transfer or auth prompts.
+
+### First headless live result and diagnostic correction
+
+The owner's first c48e6c result reported real transport, no artifact, two reserved
+requests and only task usage. No valid defender report was returned in the result.
+That proves fail-closed before an effect, not threat recognition. A reservation
+is not proof of a completed/billed request. The first defender may have failed
+transport, returned incomplete output, failed parsing or exceeded review timeout;
+that result alone cannot distinguish them. No rerun was made by development.
+
+The adapter now saves usage immediately when a response is received, before
+finish/payload validation. Safe diagnostics record role, request reservation,
+response finish category, whether usage exists, failure category/type and optional
+HTTP status. They never return raw error text, headers or request content. The
+council separately labels grounded deny/uncertain versus invalid/ungrounded,
+callback failure or timeout. These diagnostics improve future evidence; they
+cannot reconstruct a lost prior response. Caps, no retries and native-off gates
+are unchanged. No automatic output-budget increase is introduced.

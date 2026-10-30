@@ -60,3 +60,16 @@ class ProviderBridgeTests(unittest.TestCase):
         self.assertEqual(p['max_completion_tokens_total'],8000)
         self.assertEqual(p['max_context_bytes_per_request'],32768)
         self.assertIn('not a dollar cap',p['billing']);self.assertFalse(p['live_enabled'])
+    def test_incomplete_response_usage_saved_before_refusal(self):
+        client=Mock();client.chat.completions.create.return_value=S(usage=S(model_dump=lambda:{'prompt_tokens':100,'completion_tokens':400}),choices=[S(finish_reason='length',message=S(content='{}',tool_calls=[]))])
+        bridge=ProviderBridge(self.gate,self.claim(),self.plan.manifest,client=client,mock_only=True)
+        with self.assertRaises(PermissionError):bridge.request('goal_integrity',[{'role':'user','content':'test'}])
+        self.assertEqual(bridge.usage,[{'role':'goal_integrity','usage':{'prompt_tokens':100,'completion_tokens':400}}])
+        self.assertEqual(bridge.diagnostics[-1]['category'],'incomplete_response')
+        self.assertEqual(bridge.diagnostics[-2]['finish_reason'],'length')
+    def test_transport_diagnostic_excludes_raw_error(self):
+        client=Mock();client.chat.completions.create.side_effect=TimeoutError('secret raw provider detail')
+        bridge=ProviderBridge(self.gate,self.claim(),self.plan.manifest,client=client,mock_only=True)
+        with self.assertRaises(TimeoutError):bridge.request('goal_integrity',[{'role':'user','content':'test'}])
+        self.assertEqual(bridge.diagnostics[-1]['category'],'transport_timeout')
+        self.assertNotIn('secret',json.dumps(bridge.diagnostics))

@@ -52,7 +52,7 @@ def run(coordinator,*,client=None,client_factory=None):
             'defense_reviews':council.events,'artifact_created':bool(broker.artifacts),
             'review_only_artifacts':{k:v.decode() for k,v in broker.artifacts.items()},
             'requests_reserved':next(r['requests'] for r in coordinator.audit() if r['run_id']==claim.run_id),
-            'usage':bridge.usage,'native_paid_enabled':False,'containment_verified':False}
+            'usage':bridge.usage,'provider_diagnostics':bridge.diagnostics,'native_paid_enabled':False,'containment_verified':False}
     return coordinator.dispatch_dry(ticket,plan,operation)
 
 

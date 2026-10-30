@@ -107,6 +107,6 @@ def run_prepared_mock(plan,coordinator,ticket,*,client):
         session=ModelSession(plan.goal,list(plan.source),authorized=True,client=bridge.task_client())
         result=Guard(plan.manifest.image).run(dict(plan.source),list(plan.manifest.command),seconds=90,model_session=session,defense_council=council)
         result.update(defense_reviews=council.events,model_finished=session.finished,model_requests=session.turns,
-                      mocked_model=True,paid_authority=False,all_role_usage=bridge.usage)
+                      mocked_model=True,paid_authority=False,all_role_usage=bridge.usage,provider_diagnostics=bridge.diagnostics)
         return result
     return coordinator.dispatch_dry(ticket,plan.manifest,operation)
