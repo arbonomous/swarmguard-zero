@@ -370,3 +370,22 @@ these missing pieces. Native paid paths stay off. The legacy `--approved-once`
 path is still disabled; it must be removed/replaced before any paid re-enable.
 This coordinator is an accidental/reentrant-launch boundary, not protection
 against arbitrary same-user host code or a repo-wide provider kill switch.
+
+
+### Dry private worker handoff
+
+`worker_handoff.py` prototypes a coordinator-owned inherited socketpair. The
+parent commits a dry claim before starting the fixed local Python child. No
+authority file, task text, source or credential is passed in arguments. The child
+inherits a minimal environment with no model API key. Source/task travel only
+inside the private local channel and are checked against the manifest hash at
+the child boundary. Neither process imports a provider or starts a container.
+
+Each dry request needs a sequential reservation response from the parent. The
+parent commits the same run's budget reservation before responding. Changed
+inputs, out-of-order frames, excessive frames, exhausted budgets and storage
+failures stop the protocol. The child is reaped or killed on every exit path.
+Unclear results remain spent/unknown and cannot retry. The subprocess tests use
+real local IPC, not real inference. Three dry reservations succeed; a fourth is
+refused with zero model requests. No paid UI or execution route uses this file.
+This is not a whole-computer agent guard and does not authenticate human intent.
