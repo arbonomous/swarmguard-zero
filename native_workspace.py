@@ -16,6 +16,17 @@ def require_offline_native_operation(kind):
         raise PermissionError('Native paid AI tasks and demos are paused. Nothing started.')
 
 
+def dry_manifest():
+    # Fixed manifest shared by review and dry start; never enables provider work.
+    from execution_gate import Manifest
+    from native_model_task import SOURCE, TASK, REVIEW
+    from meta_agent import MODEL, BASE_URL, TOOLS
+    from managed_model import RELAY
+    from isolation_check import VERIFIED_IMAGE
+    return Manifest.build({'sales.txt': SOURCE}, TASK, endpoint=BASE_URL, model=MODEL,
+                          tools=TOOLS, image=VERIFIED_IMAGE, command=RELAY, warning=REVIEW)
+
+
 def prepare(paths: list[str], command_text: str, output_text: str) -> tuple:
     files = {}
     for value in paths:
@@ -111,6 +122,8 @@ def _build():
             from task_review import ReviewFlow
             self.review_flow = ReviewFlow()
             self.review_receipt = None
+            self.execution_gate = None
+            self.execution_ticket = None
             self.visual_panel = None
             content = self.panel.contentView()
             def label(text, y, height=36):
@@ -348,7 +361,15 @@ def _build():
             from native_model_task import SOURCE, TASK
             self.review_flow.begin_review()
             self.review_receipt = None
+            self.execution_ticket = None
             self.dry_button.setEnabled_(False)
+            from execution_gate import Coordinator
+            try:
+                if self.execution_gate is None:
+                    self.execution_gate = Coordinator(Path.home() / 'Library' / 'Application Support' / 'SwarmGuard' / 'dry-execution.sqlite3')
+                self.execution_gate.cancel()
+            except Exception:
+                self.showError_('Cannot record the nonpaying review. Nothing started.');return
             review = NSAlert.alloc().init()
             review.setIcon_(self.brand_icon)
             review.setMessageText_('Review only - paid execution is paused')
@@ -366,6 +387,10 @@ def _build():
             review.addButtonWithTitle_('Close review - no task')
             # No modal return code can route to a paid operation.
             review.runModal()
+            try:
+                self.execution_ticket = self.execution_gate.review(dry_manifest())
+            except Exception:
+                self.showError_('Cannot record the nonpaying review. Nothing started.');return
             self.review_receipt = self.review_flow.reviewed({'sales.txt': SOURCE}, TASK)
             self.dry_button.setEnabled_(True)
             self.last_model = ('Review closed. Nothing ran. No credits used.\n'
@@ -380,7 +405,10 @@ def _build():
                 return
             from native_model_task import SOURCE, TASK
             try:
-                event = self.review_flow.consume_dry(self.review_receipt, {'sales.txt': SOURCE}, TASK)
+                manifest = dry_manifest()
+                self.execution_gate.decide_dry(self.execution_ticket, manifest, explicit_start=True)
+                event = self.execution_gate.dispatch_dry(self.execution_ticket, manifest,
+                    lambda claim: self.review_flow.consume_dry(self.review_receipt, {'sales.txt': SOURCE}, TASK))
                 self.last_model = ('Nonpaying start check passed.\n'
                                    'Review matched this source and task; one-use receipt consumed.\n'
                                    'Model requests: 0. Worker started: No.\n'
@@ -390,7 +418,10 @@ def _build():
                 self.headline.setStringValue_('Nonpaying check finished. Nothing ran.')
             except PermissionError as exc:
                 self.showError_(str(exc))
+            except Exception:
+                self.showError_('Cannot commit the nonpaying check. Nothing started. Do not retry without a new review.')
             finally:
+                self.execution_ticket = None
                 self.review_receipt = None
                 self.dry_button.setEnabled_(False)
 

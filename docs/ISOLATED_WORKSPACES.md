@@ -337,3 +337,36 @@ managed_model/meta_agent functions and analysis APIs retain paid-capable paths.
 Do not run them as an alternative to the paused native controls. No new paid
 execution is authorized by this patch. Existing hooks/proxy policy routes are
 not changed by it.
+
+
+### Durable nonpaying coordinator
+
+`execution_gate.py` is a dry-only coordinator, now used by the native review and
+separate no-spend check. It has no provider/client/worker imports. Paid dispatch
+always refuses. It does not turn a review receipt into spending authority.
+
+A frozen run manifest hashes source/task, provider/model, tool schema, fixed
+image/command, request/token/context limits, no retries and billing warning.
+Pending state expires after two minutes and never survives coordinator restart.
+A distinct dry start is required. Claims commit in SQLite with FULL synchronous
+mode before any dry callback; replay, concurrent starts and changed manifests
+fail closed. A failure after claim is unknown/spent, not retryable. Request
+reservations are durable and occur before a future request seam, not after it.
+The private database contains only random run IDs, hashes, lifecycle timestamps,
+state and request counts. No task/source text, model content or credentials.
+One coordinator owns this database; creating another invalidates pending state.
+
+Tests cover cancellation/close/escape as adapter cancellation events, replacement,
+expiry, changed manifest fields, forged/replayed identity, concurrent claims,
+restart, crash/unreadable result, storage failure, request budgets and the exact
+native dry handler. These are mocked/isolated tests, not proof of actual AppKit
+input-event semantics. Existing Mac no-spend evidence predates this adapter.
+No additional Mac check is requested for this change.
+
+Still absent: a trusted paid-approval UI adapter, authenticated private worker
+handoff, worker-side manifest enforcement and provider integration consuming the
+same request budget. There is deliberately no working paid dispatch to bypass
+these missing pieces. Native paid paths stay off. The legacy `--approved-once`
+path is still disabled; it must be removed/replaced before any paid re-enable.
+This coordinator is an accidental/reentrant-launch boundary, not protection
+against arbitrary same-user host code or a repo-wide provider kill switch.
