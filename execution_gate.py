@@ -35,10 +35,12 @@ class Manifest:
     warning_hash: str
     retries: int = 0
     all_role_requests: int = 3
+    defender_completion_tokens: int = 400
+    reasoning_effort: str = 'low'
 
     @classmethod
     def build(cls, source, task, *, endpoint, model, tools, image, command,
-              requests=3, completion_tokens=1600, context_bytes=32768, all_role_requests=3, warning):
+              requests=3, completion_tokens=1600, context_bytes=32768, all_role_requests=3, defender_completion_tokens=400, reasoning_effort='low', warning):
         if (type(requests) is not int or not 1 <= requests <= 3 or
             type(completion_tokens) is not int or not 1 <= completion_tokens <= 1600 or
             type(context_bytes) is not int or not 1 <= context_bytes <= 32768):
@@ -48,14 +50,16 @@ class Manifest:
         if not command or not all(isinstance(v,str) for v in command):
             raise ValueError('Fixed worker command required')
         return cls(binding(source,task),endpoint,model,digest(tools),image,tuple(command),
-                   requests,completion_tokens,context_bytes,digest(warning),all_role_requests=all_role_requests)
+                   requests,completion_tokens,context_bytes,digest(warning),all_role_requests=all_role_requests,defender_completion_tokens=defender_completion_tokens,reasoning_effort=reasoning_effort)
 
     def fingerprint(self):
         if (type(self.requests) is not int or not 1 <= self.requests <= 3 or
             type(self.completion_tokens) is not int or not 1 <= self.completion_tokens <= 1600 or
             type(self.context_bytes) is not int or not 1 <= self.context_bytes <= 32768 or
             self.retries != 0 or type(self.command) is not tuple or
-            type(self.all_role_requests) is not int or not self.requests <= self.all_role_requests <= 12):
+            type(self.all_role_requests) is not int or not self.requests <= self.all_role_requests <= 12 or
+            type(self.defender_completion_tokens) is not int or not 1<=self.defender_completion_tokens<=1600 or
+            self.reasoning_effort not in ('minimal','low')):
             raise ValueError('Invalid manifest limits or command')
         return digest(self.__dict__)
 

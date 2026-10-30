@@ -34,3 +34,13 @@ class HeadlessValidationTests(unittest.TestCase):
             client.chat.completions.create.side_effect=[task,incomplete]
             result=validation.run(gate,client=client)
             self.assertFalse(result['artifact_created']);self.assertEqual(client.chat.completions.create.call_count,2)
+    def test_reasoning_and_complete_json_budget_are_manifest_bound(self):
+        from dataclasses import replace
+        m=validation.manifest()
+        self.assertEqual(m.defender_completion_tokens,1600);self.assertEqual(m.reasoning_effort,'low')
+        self.assertNotEqual(m.fingerprint(),replace(m,defender_completion_tokens=400).fingerprint())
+        self.assertNotEqual(m.fingerprint(),replace(m,reasoning_effort='minimal').fingerprint())
+        with contextlib.redirect_stdout(io.StringIO()) as out:validation.main([])
+        plan=json.loads(out.getvalue())['ready_plan']
+        self.assertEqual(plan['max_completion_tokens_total'],4800)
+        self.assertEqual(plan['max_requests_total'],3)

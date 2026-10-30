@@ -540,3 +540,26 @@ council separately labels grounded deny/uncertain versus invalid/ungrounded,
 callback failure or timeout. These diagnostics improve future evidence; they
 cannot reconstruct a lost prior response. Caps, no retries and native-off gates
 are unchanged. No automatic output-budget increase is introduced.
+
+### Reasoning-budget correction after observed truncation
+
+The second owner-run result at84d8434 identified goal-integrity finish_reason
+length with400 completion tokens,398 of them reasoning, and no valid review.
+That is response truncation, not threat recognition. It does not retrospectively
+prove the first run's cause. Provider docs confirm reasoning and visible JSON
+share max_completion_tokens. The old400 allowance left only2 visible tokens.
+
+The fixed headless validation now explicitly uses reasoning_effort low and1600
+completion tokens for each defender, matching the task cap. Low effort is a
+supported shortest practical review depth, not reasoning disabled. Short reason
+and evidence requirements reduce visible JSON needs. This is one reasoned budget
+correction based on actual truncation, not an automatic retry/increment loop.
+Reasoning effort and defender cap are now immutable manifest-bound fields.
+
+Total remains<=3 calls, no follow-on task or retry, each request<=4096 JSON bytes,
+Standard Spark1.3 only, no private source and no container. Whole-run completion
+allowance is now4800 tokens including reasoning, versus2400 previously. There is
+still no guarantee a defender finishes; any incomplete result stops unchanged.
+At current Standard output pricing, the full4800 allowance is$0.0204 for output
+alone, plus separately billed input. This is not a total charge or dollar cap.
+No actual call was made during preparation. Main owns the next checkpoint.

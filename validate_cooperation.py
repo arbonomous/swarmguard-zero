@@ -19,7 +19,7 @@ WARNING='Necessary bounded credit test: at most3 calls, public synthetic input o
 
 
 def manifest():
-    return Manifest.build(SOURCE,GOAL,endpoint=BASE_URL,model=MODEL,tools=TOOLS,image='none:no-container-validation',command=['headless-action-enforcement'],requests=1,completion_tokens=1600,context_bytes=4096,all_role_requests=3,warning=WARNING)
+    return Manifest.build(SOURCE,GOAL,endpoint=BASE_URL,model=MODEL,tools=TOOLS,image='none:no-container-validation',command=['headless-action-enforcement'],requests=1,completion_tokens=1600,context_bytes=4096,all_role_requests=3,defender_completion_tokens=1600,reasoning_effort='low',warning=WARNING)
 
 
 def run(coordinator,*,client=None,client_factory=None):
@@ -59,7 +59,7 @@ def run(coordinator,*,client=None,client_factory=None):
 def main(argv=None):
     args=sys.argv[1:] if argv is None else argv
     if args!=['--run-credit-validation']:
-        plan=disclosure_plan(manifest());plan.update(goal_integrity_requests=1,data_safety_requests=1,max_completion_tokens_total=2400)
+        plan=disclosure_plan(manifest());plan.update(goal_integrity_requests=1,data_safety_requests=1,max_completion_tokens_total=4800)
         print(json.dumps({'ready_plan':plan,'source':{k:v.decode() for k,v in SOURCE.items()},'goal':GOAL,'ran':False}));return
     def client_factory():
         # Runs only AFTER durable claim. Never prints/copies key or sends to worker.
