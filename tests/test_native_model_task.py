@@ -30,10 +30,10 @@ class NativeModelTaskTests(unittest.TestCase):
             self.assertTrue(task.invoke(root,runner=runner)['ready'])
             args,kw=runner.call_args
             self.assertEqual(args[0][-1],'--check');self.assertNotIn('shell',kw)
-            task.invoke(root,approved=True,runner=runner)
+            with patch.object(task,'PAID_EXECUTION_ENABLED',True):task.invoke(root,approved=True,runner=runner)
             self.assertEqual(runner.call_args.args[0][-1],'--approved-once')
     def test_failed_worker_is_never_repeated_and_not_echoed(self):
-        with patch.object(task,'worker_command',return_value=['fixed']):
+        with patch.object(task,'PAID_EXECUTION_ENABLED',True),patch.object(task,'worker_command',return_value=['fixed']):
             runner=Mock(return_value=SimpleNamespace(returncode=1,stdout='secret',stderr='secret'))
             with self.assertRaisesRegex(RuntimeError,'Do not repeat') as e:task.invoke(Path('.'),approved=True,runner=runner)
             self.assertNotIn('secret',str(e.exception));self.assertEqual(runner.call_count,1)
@@ -44,7 +44,7 @@ class NativeModelTaskTests(unittest.TestCase):
         with patch('managed_model.run_once') as run,contextlib.redirect_stdout(io.StringIO()) as out:
             task.main([]);self.assertIn('approval',out.getvalue());run.assert_not_called()
     def test_one_approved_mock_call_and_synthetic_metadata(self):
-        with patch.dict('os.environ',{'MODEL_API_KEY':'synthetic-not-a-key'}),patch('managed_model.run_once',return_value={'artifacts':{'summary.txt':b'{}'}}) as run,contextlib.redirect_stdout(io.StringIO()) as out:
+        with patch.object(task,'PAID_EXECUTION_ENABLED',True),patch.dict('os.environ',{'MODEL_API_KEY':'synthetic-not-a-key'}),patch('managed_model.run_once',return_value={'artifacts':{'summary.txt':b'{}'}}) as run,contextlib.redirect_stdout(io.StringIO()) as out:
             task.main(['--approved-once'])
             self.assertEqual(run.call_count,1)
             self.assertTrue(run.call_args.kwargs['authorized'])
@@ -62,7 +62,14 @@ class NativeModelTaskTests(unittest.TestCase):
         import sys
         events=[]
         command=[sys.executable,'-c','import json; print(json.dumps({"progress":{"kind":"started","name":"synthetic-worker"}})); print(json.dumps({"artifacts":{},"removed":True}))']
-        with patch.object(task,'worker_command',return_value=command):
+        with patch.object(task,'PAID_EXECUTION_ENABLED',True),patch.object(task,'worker_command',return_value=command):
             result=task.invoke(Path('.'),approved=True,on_event=events.append)
         self.assertEqual(events,[{'kind':'started','name':'synthetic-worker'}])
         self.assertTrue(result['removed'])
+
+    def test_paused_paid_paths_fail_before_any_subprocess_or_model(self):
+        self.assertFalse(task.PAID_EXECUTION_ENABLED)
+        with patch.object(task,'worker_command') as command,patch('managed_model.run_once') as run:
+            with self.assertRaises(PermissionError):task.invoke(Path('.'),approved=True)
+            with contextlib.redirect_stdout(io.StringIO()) as out:task.main(['--approved-once'])
+            self.assertIn('paused',out.getvalue());command.assert_not_called();run.assert_not_called()

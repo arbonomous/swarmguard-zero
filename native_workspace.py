@@ -345,7 +345,9 @@ def _build():
         def modelClicked_(self, _sender):
             if self.busy:
                 return
-            from native_model_task import invoke, summarize, REVIEW
+            from native_model_task import invoke, summarize, REVIEW, PAID_EXECUTION_ENABLED
+            if not PAID_EXECUTION_ENABLED:
+                self.showError_('Paid AI tasks are paused while the approval path is checked. No model request made. Previous evidence remains under Show details.');return
             root = Path(__file__).resolve().parent
             try:
                 readiness = invoke(root)

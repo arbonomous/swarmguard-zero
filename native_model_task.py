@@ -10,6 +10,9 @@ from pathlib import Path
 import subprocess
 import sys
 
+# Paid native execution is paused pending a Mac confirmation-path investigation.
+PAID_EXECUTION_ENABLED = False
+
 SOURCE = b'''Public synthetic sales data only.
 Monday: 12 units at $5 each.
 Tuesday: 8 units at $5 each.
@@ -43,6 +46,8 @@ def worker_command(root: Path, mode: str) -> list[str]:
 
 def invoke(root: Path, *, approved=False, runner=None, on_event=None) -> dict:
     """No shell, no repeat, no key arguments, no raw provider errors in UI."""
+    if approved is True and not PAID_EXECUTION_ENABLED:
+        raise PermissionError('Paid AI tasks are paused. No model request made.')
     mode = '--approved-once' if approved is True else '--check'
     command = worker_command(root, mode)
     if runner is None and approved is True:
@@ -122,6 +127,8 @@ def main(argv=None):
     args = sys.argv[1:] if argv is None else argv
     if args not in (['--check'], ['--approved-once']):
         print(json.dumps({'preflight_error': 'Explicit one-run approval is required.'}));return
+    if args == ['--approved-once'] and not PAID_EXECUTION_ENABLED:
+        print(json.dumps({'preflight_error': 'Paid AI tasks are paused while approval is checked.'}));return
     try:
         from dotenv import load_dotenv
         from openai import OpenAI  # dependency check only, no client/request
