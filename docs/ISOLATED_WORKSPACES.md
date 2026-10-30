@@ -491,3 +491,34 @@ handoff exists separately; there is no production claimed-run handoff to this
 adapter, no live key loading and no paid UI route. Those remain blockers before
 any native paid validation, in addition to real Mac/OrbStack/UI verification and
 the unresolved historic unexpected-run investigation.
+
+
+### Prepared headless credit validation (not executed by development)
+
+`validate_cooperation.py` is a dedicated fixed-public-input path separate from
+native/modal controls. No flag prints the exact public source/goal/disclosure
+plan without key access or requests. The explicit run flag claims a durable run
+before loading the existing Mac-local key or creating a client. It uses Standard
+Spark1.3, SDK retries0, timeout10sec, and at most one task proposal plus one review
+per defender. The task cannot continue after that single proposal. All three
+calls reserve the same run before transport. No native feature is reenabled.
+
+Input is fixed public synthetic text; no private source or host data. Proposed
+write must target checklist.md with <=1800-byte JSON arguments. Each request's
+messages+tools JSON is limited to4096 UTF-8 bytes. Output allowance is task1600
+plus two defenders400 each, total2400 completion tokens. Exact input token count
+and dollar charge are not guaranteed by byte limits. No auto-increase/retry.
+Incomplete/invalid defender output refuses before effect and the second defender
+is skipped after refusal. The same Broker actually applies an allowed artifact
+only after both valid allows; a veto yields no artifact. Output remains in memory
+and is printed for review, never written into a project. No container is used,
+so the result explicitly says containment not verified.
+
+Prepared command for a main-coordinated necessary credit test on Jose's Mac:
+`.venv/bin/python validate_cooperation.py --run-credit-validation`.
+This command is not a request to run now. No key leaves his Mac. Native paid
+controls remain off; old approval incident cause remains unknown. The fresh owner
+credit-use grant is separate from private-source disclosure and card-overage
+permission. Current balance was owner-reported; no documented balance API was
+found in public references. Account billing can be inspected only through an
+already-accessible correct dashboard without secret transfer or auth prompts.

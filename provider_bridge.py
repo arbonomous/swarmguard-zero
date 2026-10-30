@@ -37,6 +37,17 @@ class ProviderBridge:
         # No real client can be constructed through this revision.
         self.usage=[]
 
+    @classmethod
+    def for_headless_validation(cls,coordinator,claim,manifest,*,client):
+        # Only the fixed public-source, <=3-call validation manifest is accepted.
+        # This does not enable the general/native provider constructor.
+        from validate_cooperation import manifest as expected_manifest
+        if manifest!=expected_manifest():raise PermissionError('Not the fixed headless validation plan')
+        obj=object.__new__(cls)
+        obj.coordinator=coordinator;obj.claim=claim;obj.manifest=manifest
+        obj.client=client;obj.mock_only=False;obj.failed=False;obj.usage=[]
+        return obj
+
     def request(self,role,messages,*,tools=None):
         if self.failed:raise PermissionError('Provider run already stopped; no retries')
         try:
@@ -102,7 +113,7 @@ def disclosure_plan(manifest):
     return {'endpoint':manifest.endpoint,'model':manifest.model,
         'disclosed':'Exact selected source copies, goal, proposed actions, candidate artifacts and bounded tool history go to the provider for task and both defenders.',
         'max_requests_total':manifest.all_role_requests,'task_requests':manifest.requests,
-        'goal_integrity_requests':4,'data_safety_requests':4,'analyst_requests':0,
+        'goal_integrity_requests':min(4,manifest.all_role_requests),'data_safety_requests':min(4,manifest.all_role_requests),'analyst_requests':0,
         'task_completion_tokens_per_request':manifest.completion_tokens,
         'defender_completion_tokens_per_request':min(DEFENDER_TOKENS,manifest.completion_tokens),
         'max_context_bytes_per_request':manifest.context_bytes,'retries':0,
