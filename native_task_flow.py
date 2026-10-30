@@ -14,14 +14,20 @@ from meta_agent import BASE_URL, MODEL, TOOLS
 from protected_task import Plan, plan_source
 
 NATIVE_LIVE_RELEASED=False
+MAX_SOURCE_BYTES=1024
+MAX_GOAL_BYTES=512
+
+def limits_text():
+    return (f'{MAX_SOURCE_BYTES // 1024} KiB source total; {MAX_GOAL_BYTES}-byte goal. Review-only outputs.\n'
+            'Secret checks are limited. Do not select private documents or keys.')
 WARNING='Selected copies and goal go to Meta Standard for one task request and up to two defenders. At most3 requests/4800 completion tokens including reasoning, low effort, no retries. Input is billed too. Credit bounds are not a dollar cap. Do not select private data. No card-overage authority.'
 
 
 def prepare(source,goal):
     original=plan_source(source,goal)
     # Keep full task+defender JSON within the existing validated request envelope.
-    if sum(map(len,original.source.values()))>1024 or len(goal.encode())>512:
-        raise ValueError('This prepared native run accepts at most 1 KiB source and a 512-byte goal')
+    if sum(map(len,original.source.values()))>MAX_SOURCE_BYTES or len(goal.encode())>MAX_GOAL_BYTES:
+        raise ValueError(f'This prepared native run accepts at most {MAX_SOURCE_BYTES} source bytes and a {MAX_GOAL_BYTES}-byte goal')
     m=Manifest.build(original.source,goal,endpoint=BASE_URL,model=MODEL,tools=TOOLS,
         image=VERIFIED_IMAGE,command=RELAY,requests=1,completion_tokens=1600,
         all_role_requests=3,defender_completion_tokens=1600,context_bytes=4096,

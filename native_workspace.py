@@ -44,6 +44,21 @@ def prepare(paths: list[str], command_text: str, output_text: str) -> tuple:
     return files, command, outputs
 
 
+def protected_layout():
+    # Dedicated AppKit bottom-left coordinates. No shared workspace offsets.
+    return {
+        'workspace_scope':(18,480,554,44),
+        'pick_button':(18,438,554,30),
+        'selection':(18,400,554,30),
+        'command_label':(18,370,554,22),
+        'command':(18,336,554,28),
+        'workspace_limits':(18,281,554,44),
+        'run_button':(18,239,265,30),
+        'protected_start':(300,239,272,30),
+        'scroll':(18,48,554,180),
+    }
+
+
 def check_summary(text: str) -> str:
     """Keep raw protocol evidence out of the normal result view."""
     return text.split('\n\nEvidence:', 1)[0]
@@ -229,10 +244,31 @@ def _build():
                 view.setHidden_(not workspace)
             for view in self.top_views:
                 view.setHidden_(workspace)
-            details = self.mode not in ('Status', 'Safety check', 'AI task', 'Workspace')
+            details = self.mode not in ('Status', 'Safety check', 'AI task', 'Workspace', 'Protected task')
             for view in self.top_views:
                 view.setHidden_(not details)
             self.scroll.setFrame_(NSMakeRect(18, 48, 554, 120 if workspace else (240 if self.mode == 'AI task' else (350 if details else 250))))
+            if protected:
+                from native_task_flow import NATIVE_LIVE_RELEASED,limits_text
+                self.panel.setContentSize_((590,660))
+                self.home_button.setHidden_(True)
+                self.details_button.setHidden_(True)
+                for view in self.top_views:view.setHidden_(True)
+                for view in (self.check_button,self.exports_label,self.exports,self.save_button):view.setHidden_(True)
+                for name,frame in protected_layout().items():
+                    view=getattr(self,name);view.setFrame_(NSMakeRect(*frame));view.setHidden_(False)
+                self.workspace_scope.setStringValue_('Local review only. Nothing sent and no worker started.\nOnly SwarmGuard-owned tasks can be guarded.')
+                self.workspace_limits.setStringValue_(limits_text())
+                self.command_label.setStringValue_('Goal for the selected source copies:')
+                self.run_button.setTitle_('Review protected task')
+                self.protected_start.setTitle_('Start reviewed task' if NATIVE_LIVE_RELEASED else 'Start task - not released')
+                self.protected_start.setEnabled_(False)
+                if str(self.command.stringValue()).startswith('/bin/'):self.command.setStringValue_('')
+                self.headline.setStringValue_('Review first. Live Start is not released.' if not NATIVE_LIVE_RELEASED else 'Review exact copies before a separate Start.')
+                self.results.setString_('1. Choose non-secret source files.\n2. Write a goal and click Review protected task.\n3. Check the exact copies in this area.\n\nLive Start is disabled. No AI request or worker can start from Review.' if not NATIVE_LIVE_RELEASED else 'Choose source files, write a goal, then review the exact copies before Start.')
+                return
+            self.home_button.setHidden_(False)
+            self.details_button.setHidden_(False)
             if self.mode == 'AI task':
                 self.results.setString_(check_summary(getattr(self, 'last_model', 'PAID EXECUTION PAUSED\n\nReview only shows the built-in synthetic source and task. It cannot start a model or worker.\n\nAfter closing review, a separate Check start - no spend button checks a one-use source/task binding. That check also cannot spend.\n\nThe earlier approval-screen cause is unresolved. No paid re-enable from this check.')));return
             if self.mode == 'Safety check':
@@ -245,7 +281,7 @@ def _build():
                 self.protected_start.setEnabled_(False)
                 self.exports_label.setHidden_(protected)
                 self.workspace_scope.setStringValue_('Local plan only. Execution paused; nothing sent to a provider.\nOther agents and the rest of your Mac are not protected.' if protected else 'Offline copied files only. No host mounts, keys, downloads or cloud agents.\nAgents running elsewhere are not protected.')
-                self.workspace_limits.setStringValue_('8 KiB total source; 2048-byte goal. Outputs stay review-only.\nSecret detection is limited. Never select private documents or keys.' if protected else '1 MiB/file, 4 MiB total. Hidden/credential-like paths refused.\nSecret detection is not exhaustive. Never choose private documents or keys.')
+                self.workspace_limits.setStringValue_(__import__('native_task_flow').limits_text() if protected else '1 MiB/file, 4 MiB total. Hidden/credential-like paths refused.\nSecret detection is not exhaustive. Never choose private documents or keys.')
                 self.command_label.setStringValue_('Goal for these selected source copies:' if protected else 'Trusted in-image command (absolute executable):')
                 self.run_button.setTitle_('Review protected task' if protected else 'Review and run copies')
                 if protected:

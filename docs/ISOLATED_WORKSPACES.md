@@ -670,3 +670,15 @@ must be approved for the displayed Meta disclosure; the credit grant does not
 supply permission to send arbitrary private files. The historical unexpected
 native launch remains unexplained, not retroactively authorized or solved by
 this new path.
+
+### Protected task layout correction
+
+Actual Mac screenshot review exposed legacy controls being re-shown by the generic
+section loop, overlapping the protected task fields. Protected task now has an
+early dedicated layout branch that hides every unrelated scenario/demo/sound/
+notice/visual/test/details control and places the fields and review area explicitly.
+Limit labels share MAX_SOURCE_BYTES and MAX_GOAL_BYTES with execution validation.
+Tests check the actual section handler's final visibility state and nonoverlapping
+field rectangles. These are layout regressions, not a claim that updated AppKit
+pixels have been inspected. Actual Mac screenshot validation is still required.
+No live release or provider call is part of this correction.

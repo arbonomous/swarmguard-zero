@@ -83,3 +83,35 @@ class ScopedTransportTests(unittest.TestCase):
             controller.command.stringValue.return_value='Goal';controller.protected_flow=None
             with patch('native_task_flow.NATIVE_LIVE_RELEASED',True):scope['protectedStartClicked_'](controller,None)
             controller.setBusy_.assert_not_called();controller.showError_.assert_called_once()
+
+class ProtectedLayoutTests(unittest.TestCase):
+    def test_dedicated_rectangles_do_not_overlap(self):
+        from native_workspace import protected_layout
+        frames=protected_layout()
+        for a,(x,y,w,h) in frames.items():
+            self.assertGreaterEqual(x,18);self.assertGreaterEqual(y,48)
+            self.assertLessEqual(x+w,572);self.assertLessEqual(y+h,524)
+            for b,(xx,yy,ww,hh) in frames.items():
+                if a>=b:continue
+                self.assertFalse(x<xx+ww and xx<x+w and y<yy+hh and yy<y+h,(a,b))
+    def test_display_limits_share_execution_constants(self):
+        import native_task_flow as task
+        self.assertIn(str(task.MAX_GOAL_BYTES),task.limits_text())
+        self.assertIn(str(task.MAX_SOURCE_BYTES//1024)+' KiB',task.limits_text())
+        with patch.object(task,'MAX_SOURCE_BYTES',3),self.assertRaises(ValueError):task.prepare({'x.txt':b'four'},'Goal')
+    def test_actual_section_handler_hides_legacy_controls(self):
+        import ast,native_workspace
+        node=next(n for n in ast.walk(ast.parse(Path(native_workspace.__file__).read_text())) if isinstance(n,ast.FunctionDef) and n.name=='sectionChanged_')
+        scope={'NSMakeRect':lambda *v:v,'protected_layout':native_workspace.protected_layout}
+        exec(compile(ast.Module(body=[node],type_ignores=[]),'<native section>','exec'),scope)
+        c=Mock();c.busy=False;c.protected_flow=None;c.base_frames=[]
+        c.sections.titleOfSelectedItem.return_value='Protected task'
+        c.workspace_views=[c.workspace_scope,c.pick_button,c.selection,c.command_label,c.command,c.exports_label,c.exports,c.workspace_limits,c.run_button,c.save_button,c.protected_start,c.check_button]
+        c.top_views=[Mock() for _ in range(7)]
+        c.command.stringValue.return_value=''
+        scope['sectionChanged_'](c,None)
+        for view in c.top_views:self.assertEqual(view.setHidden_.call_args.args,(True,))
+        for view in [c.home_button,c.details_button,c.check_button,c.exports_label,c.exports,c.save_button]:self.assertEqual(view.setHidden_.call_args.args,(True,))
+        self.assertEqual(c.protected_start.setEnabled_.call_args.args,(False,))
+        self.assertEqual(c.workspace_limits.setStringValue_.call_args.args[0],__import__('native_task_flow').limits_text())
+        for name,rect in native_workspace.protected_layout().items():self.assertEqual(getattr(c,name).setFrame_.call_args.args,(rect,))
